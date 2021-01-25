@@ -1,0 +1,45 @@
+* {
+    margin: 0;
+    padding: 0;
+}
+
+@font-face {
+	font-family: 'DS-Digital-Italic';
+	src: url('./font/DS-Digital-Italic.eot');
+    src: local('DS-Digital-Italic'), 
+        url('./font/DS-Digital-Italic.woff') format('woff'), 
+        url('./font/DS-Digital-Italic.ttf') format('truetype');
+}
+
+body {
+    background: #dae0ca;
+}
+
+.wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+canvas { 
+    border: 2px solid black; 
+    background: #9aa680;
+    padding: 6px;
+    margin: 20px 0;
+}
+
+.footer {
+    width: 100%;
+    color: #000000;
+    text-align: center;
+}
+.footer a {
+    color: #000000;
+}
+
+img.manual {
+    display: none;
+    position: absolute;
+    top: 20px;
+    left: 10px;
+}
