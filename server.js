@@ -73,6 +73,7 @@ function generatePlayField() {
   }
 }
 generatePlayField();
+addBot();
 
 // Случайное целое число в пределах игрового поля
 function randomInteger(max) {
@@ -86,6 +87,7 @@ io.on('connection', function (socket) {
     players[socket.id] = {
       name,
       status: true,
+      isBot: false,
       x: randomInteger(size.col - 3),
       y: randomInteger(size.row - 3),
       position: positions[(Math.random() * 4) | 0],
@@ -202,7 +204,6 @@ function movePlayer(playerId, dx, dy, position) {
   }
 }
 
-
 // Проверка столкновений между игроками
 function isPlayerCollision(player, newX, newY) {
   for (const playerId in players) {
@@ -240,7 +241,6 @@ function isPlayerCollision(player, newX, newY) {
 // Проверка выхода игрока за границы
 function isOutOfBounds(player) {
   if (!player || !positionPiece[player.position]) {
-    console.error('Invalid player or position:', player);
     return true;
   }
 
@@ -273,9 +273,11 @@ function isBulletOutOfBounds(bullet, userId) {
           // Проверка попадания пули в игрока
           if ((players[index].x + x) === bullet.x && (players[index].y + y) === bullet.y && players[index].status) {
             // Запускаем анимацию взрыва, если пуля попала в игрока
-            players[userId].rating++; // Увеличиваем рейтинг игрока
-            boomAnimate(index); // Запускаем анимацию взрыва
-            return true; // Возвращаем true для удаления пули
+            if (players[index].position != 'boomOne' && players[index].position != 'boomTwo') {
+              players[userId].rating++; // Увеличиваем рейтинг игрока
+              boomAnimate(index); // Запускаем анимацию взрыва
+              return true; // Возвращаем true для удаления пули
+            }
           }
         }
       }
@@ -321,8 +323,9 @@ function updateGameState() {
     const player = players[playerId];
     if (player && player.status && positionPiece[player.position]) {
       applyPlayerToField(player);
-    } else {
-      console.error('Skipping invalid or inactive player:', player);
+      if (player.isBot) {
+        botMovementAndShooting(playerId);
+      }
     }
 
     // Обработка пуль
@@ -358,7 +361,6 @@ function applyBulletToField(bullet) {
 
 function applyPlayerToField(player) {
   if (!player || !positionPiece[player.position]) {
-    console.error('Invalid player or position while applying to field:', player);
     return;
   }
 
@@ -402,6 +404,300 @@ function checkBulletCollisions() {
         }
       }
     }
+  }
+}
+
+// Функция для добавления бота
+function addBot() {
+  const botId = 'bot_' + Math.random().toString(36).substr(2, 9); // Генерация уникального ID для бота
+  const positions = ['top', 'left', 'right', 'bottom']; // Разные позиции для бота
+  const bot = {
+    name: 'Bot',
+    status: true,
+    isBot: true,
+    x: Math.floor(Math.random() * 10), // Начальная позиция по x
+    y: Math.floor(Math.random() * 10), // Начальная позиция по y
+    position: positions[Math.floor(Math.random() * positions.length)], // Случайная позиция
+    bullets: [],
+    rating: 0
+  };
+  players[botId] = bot;
+
+  // Интервал для выполнения действий бота
+  setInterval(() => {
+    if (!players[botId].status) return; // Если бот мертв, прерываем действия
+
+    // Бот выполняет действия
+    handleBotMovement(botId);  // Управление движением бота
+  }, 1000); // Каждый 1 секунду обновляем действия бота
+}
+
+// Логика движения бота
+function handleBotMovement(botId) {
+  const bot = players[botId];
+
+  if (bot.status) {
+    let nearestPlayer = getNearestPlayer(botId);  // Получение ближайшего игрока
+    if (nearestPlayer) {
+      moveBotToward(botId, nearestPlayer); // Двигаемся в сторону ближайшего игрока
+    }
+    avoidCollisions(botId);  // Избегаем столкновений с препятствиями
+  }
+}
+
+// Получение ближайшего игрока для бота
+function getNearestPlayer(botId) {
+  let nearestPlayer = null;
+  let minDistance = Infinity;
+
+  for (let id in players) {
+    if (id !== botId && players[id].status) {
+      let distance = Math.abs(players[botId].x - players[id].x) + Math.abs(players[botId].y - players[id].y);
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestPlayer = players[id];
+      }
+    }
+  }
+
+  return nearestPlayer;
+}
+
+// Функция для перемещения бота в сторону ближайшего игрока
+function moveBotToward(botId, targetPlayer) {
+  const dx = targetPlayer.x - players[botId].x;
+  const dy = targetPlayer.y - players[botId].y;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    // Двигаемся по горизонтали
+    if (dx > 0) {
+      moveBotRight(botId);
+    } else {
+      moveBotLeft(botId);
+    }
+  } else {
+    // Двигаемся по вертикали
+    if (dy > 0) {
+      moveBotDown(botId);
+    } else {
+      moveBotUp(botId);
+    }
+  }
+}
+
+// Функция для избегания столкновений с другими объектами (снарядами и игроками)
+function avoidCollisions(botId) {
+  for (let bulletId in players[botId].bullets) {
+    let bullet = players[botId].bullets[bulletId];
+    if (isBulletNearBot(botId, bullet)) {
+      let dx = bullet.x - players[botId].x;
+      let dy = bullet.y - players[botId].y;
+
+      // Двигаемся в противоположную сторону от снаряда
+      if (Math.abs(dx) > Math.abs(dy)) {
+        if (dx > 0) {
+          moveBotLeft(botId);
+        } else {
+          moveBotRight(botId);
+        }
+      } else {
+        if (dy > 0) {
+          moveBotUp(botId);
+        } else {
+          moveBotDown(botId);
+        }
+      }
+    }
+  }
+
+  // Проверка на столкновения с другими игроками
+  for (let id in players) {
+    if (id !== botId && players[id].status) {
+      if (isCollisionWithPlayer(botId, players[id])) {
+        moveBotAwayFromPlayer(botId, players[id]);
+      }
+    }
+  }
+}
+
+// Движение бота в сторону другого игрока (если столкновение)
+function moveBotAwayFromPlayer(botId, player) {
+  let dx = players[botId].x - player.x;
+  let dy = players[botId].y - player.y;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    // Двигаемся в противоположную сторону по горизонтали
+    if (dx > 0) {
+      moveBotRight(botId);
+    } else {
+      moveBotLeft(botId);
+    }
+  } else {
+    // Двигаемся в противоположную сторону по вертикали
+    if (dy > 0) {
+      moveBotDown(botId);
+    } else {
+      moveBotUp(botId);
+    }
+  }
+}
+
+// Функция для проверки попадания пули вблизи бота
+function isBulletNearBot(botId, bullet) {
+  return Math.abs(bullet.x - players[botId].x) < 3 && Math.abs(bullet.y - players[botId].y) < 3;
+}
+
+// Функция для проверки столкновения с игроком
+function isCollisionWithPlayer(botId, player) {
+  for (let y = 0; y < 3; y++) {
+    for (let x = 0; x < 3; x++) {
+      if (positionPiece[players[botId].position][y][x] === 1 &&
+        positionPiece[player.position][y][x] === 1 &&
+        players[botId].x + x === player.x &&
+        players[botId].y + y === player.y) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Функции для движения бота
+function moveBotLeft(botId) {
+  if (players[botId].x > 0) {
+    players[botId].x -= 1;
+    players[botId].position = 'right';
+  }
+}
+
+function moveBotRight(botId) {
+  if (players[botId].x < 25 - 1) {
+    players[botId].x += 1;
+    players[botId].position = 'left';
+  }
+}
+
+function moveBotUp(botId) {
+  if (players[botId].y > 0) {
+    players[botId].y -= 1;
+    players[botId].position = 'top';
+  }
+}
+
+function moveBotDown(botId) {
+  if (players[botId].y < 25 - 1) {
+    players[botId].y += 1;
+    players[botId].position = 'bottom';
+  }
+}
+
+function isPlayerOnPath(botId, direction) {
+  let playerInRange = null;
+
+  // Направления: 'top', 'bottom', 'left', 'right'
+  for (let id in players) {
+    if (id !== botId && players[id].status) {
+      let player = players[id];
+
+      // Если бот смотрит вверх
+      if (direction === 'top' && player.x === players[botId].x && player.y < players[botId].y) {
+        playerInRange = player;
+      }
+
+      // Если бот смотрит вниз
+      if (direction === 'bottom' && player.x === players[botId].x && player.y > players[botId].y) {
+        playerInRange = player;
+      }
+
+      // Если бот смотрит влево
+      if (direction === 'left' && player.y === players[botId].y && player.x < players[botId].x) {
+        playerInRange = player;
+      }
+
+      // Если бот смотрит вправо
+      if (direction === 'right' && player.y === players[botId].y && player.x > players[botId].x) {
+        playerInRange = player;
+      }
+
+      // Если игрок найден в зоне выстрела, возвращаем игрока
+      if (playerInRange) {
+        return playerInRange;
+      }
+    }
+  }
+  return null;  // Нет игроков по пути
+}
+
+function botShoot(botId) {
+  const playerInRange = isPlayerOnPath(botId, players[botId].position); // Проверяем, есть ли игрок на пути
+
+  if (playerInRange) {
+    let id = uuidv4();
+    let bullet = {
+      position: players[botId].position,
+      x: players[botId].x + 1,
+      y: players[botId].y + 1
+    };
+
+    // Инициализируем снаряд в зависимости от направления
+    if (bullet.position === 'top') {
+      bullet.y -= 1;
+    } else if (bullet.position === 'bottom') {
+      bullet.y += 1;
+    } else if (bullet.position === 'left') {
+      bullet.x -= 1;
+    } else if (bullet.position === 'right') {
+      bullet.x += 1;
+    }
+
+    players[botId].bullets[id] = bullet;
+
+    // Делаем движение снаряда по линии
+    var interval = setInterval(() => {
+      if (!players[botId]) {
+        clearInterval(interval);
+        return;
+      }
+
+      // Двигаем снаряд в зависимости от направления
+      if (bullet.position === 'top') {
+        bullet.y -= 1;
+      } else if (bullet.position === 'bottom') {
+        bullet.y += 1;
+      } else if (bullet.position === 'left') {
+        bullet.x -= 1;
+      } else if (bullet.position === 'right') {
+        bullet.x += 1;
+      }
+
+      // Проверка на выход за границы и попадание в игрока
+      if (isBulletOutOfBounds(bullet, botId)) {
+        delete players[botId].bullets[id];
+        clearInterval(interval);
+      }
+    }, 100);
+  }
+}
+
+function botMovementAndShooting(botId) {
+  const directions = ['top', 'bottom', 'left', 'right'];
+
+  // Для каждой из направлений проверяем, есть ли игрок на пути
+  const playerInSight = directions.find(direction => isPlayerOnPath(botId, direction));
+
+  if (playerInSight) {
+    botShoot(botId);  // Стреляет только если игрок на пути
+  }
+
+  // Бот перемещается в определенном направлении
+  if (playerInSight === 'top') {
+    moveBotUp(botId);
+  } else if (playerInSight === 'bottom') {
+    moveBotDown(botId);
+  } else if (playerInSight === 'left') {
+    moveBotLeft(botId);
+  } else if (playerInSight === 'right') {
+    moveBotRight(botId);
   }
 }
 
