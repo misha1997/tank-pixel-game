@@ -1,20 +1,77 @@
 <html>
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pixel tanks game</title>
-    <link href="/static/favicon.ico" rel="icon" type="image/png">
-    <link rel="stylesheet" href="/static/style.css">
-    <script src="/socket.io/socket.io.js"></script>
-  </head>
-  <body>
-    <div class="wrapper">
-      <div id="root"></div>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pixel Tanks Battle</title>
+  <link href="/static/favicon.ico" rel="icon" type="image/png">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+
+<body>
+  <!-- Приветственное меню -->
+  <div id="menu-overlay">
+    <div class="menu-container">
+      <div class="menu-title">TANK BATTLE</div>
+      <div class="menu-subtitle">Pixel War Arena</div>
+      <div class="input-group">
+        <label for="player-name">Enter Your Callsign:</label>
+        <input type="text" id="player-name" maxlength="15" placeholder="Warrior" autocomplete="off">
+      </div>
+      <button class="btn-start" id="btn-start">START BATTLE</button>
     </div>
-    <img src="/static/manual.png" alt="" class="manual">
-    <div class="footer">
-      Created by <a href="https://github.com/misha1997" target="_blank">Misha Otroshchenko</a>
-    </div>
-  </body>
-  <script src="/static/index.js" type="module"></script>
+  </div>
+
+  <!-- Игровой контейнер -->
+  <div class="wrapper">
+    <div id="root"></div>
+  </div>
+
+  <script>
+    // Инициализация меню
+    document.addEventListener('DOMContentLoaded', function () {
+      const menuOverlay = document.getElementById('menu-overlay');
+      const playerNameInput = document.getElementById('player-name');
+      const btnStart = document.getElementById('btn-start');
+
+      // Загружаем сохраненное имя
+      const savedName = localStorage.getItem('playerName') || '';
+      playerNameInput.value = savedName;
+      playerNameInput.focus();
+
+      // Обработка старта игры
+      function startGame() {
+        const name = playerNameInput.value.trim();
+        if (!name) {
+          playerNameInput.focus();
+          playerNameInput.style.borderColor = '#ff4444';
+          setTimeout(() => {
+            playerNameInput.style.borderColor = '';
+          }, 500);
+          return;
+        }
+
+        // Сохраняем имя
+        localStorage.setItem('playerName', name);
+
+        // Скрываем меню
+        menuOverlay.classList.add('hidden');
+
+        // Передаем имя в игровой код через глобальную переменную
+        window.playerName = name;
+        window.gameStarted = true;
+      }
+
+      btnStart.addEventListener('click', startGame);
+      playerNameInput.addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+          startGame();
+        }
+      });
+    });
+  </script>
+</body>
+<script src="/static/index.js" type="module"></script>
+
 </html>

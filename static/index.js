@@ -1,37 +1,46 @@
 import View from './view.js';
 
 const root = document.querySelector('#root');
-const view = new View(root, 850, 550);
-
 const socket = io();
 
-let name = prompt('Enter your name', '');
 let myPlayerId = null;
-let keyStates = {}; // Отслеживание состояния клавиш
+let keyStates = {};
 let lastInputTime = 0;
-const INPUT_THROTTLE = 50; // Минимальный интервал между отправкой команд
+const INPUT_THROTTLE = 50;
+let view = null;
 
-if (name) {
-    socket.emit('new player', name);
-    const manual = document.querySelector('.manual');
-    if (manual) {
-        manual.style.display = "block";
+// Ждем, пока игрок введет имя
+const startGameInterval = setInterval(() => {
+    if (window.gameStarted && window.playerName) {
+        clearInterval(startGameInterval);
+        initGame();
     }
-} else {
-    alert('Name is required');
-    location.reload();
-}
+}, 100);
 
-window.view = view;
+function initGame() {
+    const name = window.playerName;
+
+    // Создаем View с полноэкранным canvas
+    view = new View(root);
+
+    // Отправляем имя игрока на сервер
+    socket.emit('new player', name);
+
+    console.log('Game started with name:', name);
+
+    playSound('/static/sounds/start.mp3');
+}
 
 // Получаем ID игрока
 socket.on('player id', function (id) {
     myPlayerId = id;
+    console.log('My player ID:', myPlayerId);
 });
 
-// Оптимизированная обработка ввода с предотвращением спама
+// Обработка ввода
 document.addEventListener('keydown', function (event) {
-    // Предотвращаем повторную отправку при удержании клавиши
+    if (!view) return; // Игра еще не началась
+
     if (keyStates[event.keyCode]) return;
     keyStates[event.keyCode] = true;
 
@@ -68,19 +77,18 @@ document.addEventListener('keydown', function (event) {
             }
             break;
         case 32: // Space
-            event.preventDefault(); // Предотвращаем прокрутку страницы
-            playSound('/static/sounds/mr_9999_06.wav');
+            event.preventDefault();
+            playSound('/static/sounds/shot.mp3');
             socket.emit('moveShot');
             break;
     }
 });
 
-// Отслеживание отпускания клавиш
 document.addEventListener('keyup', function (event) {
     keyStates[event.keyCode] = false;
 });
 
-// Оптимизированное воспроизведение звука с переиспользованием объектов
+// Оптимизированное воспроизведение звука
 const audioCache = {};
 function playSound(url) {
     try {
@@ -89,7 +97,7 @@ function playSound(url) {
         }
 
         const audio = audioCache[url].cloneNode();
-        audio.volume = 0.5; // Уменьшаем громкость
+        audio.volume = 0.5;
         audio.play().catch(err => console.log('Audio play failed:', err));
     } catch (err) {
         console.log('Audio error:', err);
@@ -99,7 +107,6 @@ function playSound(url) {
 // Автоматический перезапуск при смерти
 socket.on('user dead', function (index) {
     if (index === myPlayerId) {
-        // Перезапускаемся через небольшую задержку
         setTimeout(() => {
             socket.emit('restart');
         }, 2000);
@@ -107,28 +114,30 @@ socket.on('user dead', function (index) {
 });
 
 socket.on('user dead sound', function () {
-    playSound('/static/sounds/mr_9999_09.wav');
+    playSound('/static/sounds/dead.mp3');
 });
 
-// Обработка взрывов пуль (если добавлена соответствующая логика)
+// Обработка взрывов
 socket.on('explosion', function (data) {
-    // Можно добавить визуальный эффект взрыва
     console.log('Bullet collision at:', data);
 });
 
-// Оптимизированная отрисовка с использованием requestAnimationFrame
+socket.on('collision explosion', function (data) {
+    console.log('Player collision at:', data);
+    playSound('/static/sounds/dead.mp3');
+});
+
+// Цикл отрисовки
 let lastState = null;
 
-// Запускаем постоянный цикл отрисовки
 function renderLoop() {
-    if (lastState) {
+    if (lastState && view) {
         view.render(lastState, myPlayerId);
     }
     requestAnimationFrame(renderLoop);
 }
 renderLoop();
 
-// Просто обновляем данные без прямого вызова render
 socket.on('state', function (data) {
     lastState = data;
 });
@@ -136,14 +145,14 @@ socket.on('state', function (data) {
 // Обработка переподключения
 socket.on('reconnect', function () {
     console.log('Reconnected to server');
-    location.reload(); // Перезагружаем страницу при переподключении
+    location.reload();
 });
 
 socket.on('connect_error', function (error) {
     console.log('Connection error:', error);
 });
 
-// Показываем FPS для отладки (опционально)
+// Debug mode
 if (window.location.search.includes('debug')) {
     let fps = 0;
     let lastTime = Date.now();
@@ -163,13 +172,14 @@ if (window.location.search.includes('debug')) {
             return div;
         })();
 
-        debugDiv.innerHTML = `FPS: ${fps}<br>Players: ${lastState ? Object.keys(lastState.players).length : 0}<br>Ping: ${socket.io.engine.ping || 0}ms`;
+        debugDiv.innerHTML = `FPS: ${fps}<br>Players: ${lastState ? Object.keys(lastState.players).length : 0}<br>Ping: ${socket.io.engine ? socket.io.engine.ping : 0}ms`;
     }, 1000);
 
-    // Считаем кадры
-    const originalRender = view.render.bind(view);
-    view.render = function (...args) {
-        frames++;
-        return originalRender(...args);
-    };
+    if (view) {
+        const originalRender = view.render.bind(view);
+        view.render = function (...args) {
+            frames++;
+            return originalRender(...args);
+        };
+    }
 }

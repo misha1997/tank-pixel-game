@@ -1,14 +1,16 @@
 export default class View {
-    constructor(element, width, height) {
+    constructor(element) {
         this.element = element;
-        this.width = width;
-        this.height = height;
-
-        // Создаем canvas для игрового поля
+        
+        // Создаем canvas на весь экран
         this.canvas = document.createElement('canvas');
-        this.canvas.width = this.width;
-        this.canvas.height = this.height;
         this.context = this.canvas.getContext('2d');
+        
+        // Устанавливаем размер
+        this.resize();
+        
+        // Слушаем изменение размера окна
+        window.addEventListener('resize', () => this.resize());
 
         // Кешируем размеры ячеек
         this.cellSize = 22;
@@ -21,23 +23,35 @@ export default class View {
             filled: 'rgba(0, 0, 0)',
             empty: 'rgba(0, 0, 0, 0.2)',
             background: '#9aa680',
+            invulnerable: 'rgba(255, 215, 0)',
         };
 
-        // Кеш для состояния - хранит сериализованную версию поля
-        this.lastPlayFieldStr = '';
-        this.lastPlayersCount = 0;
-
-        // Создаем статичный фоновый canvas (рисуем только раз)
+        // Создаем статичный фоновый canvas
         this.backgroundCanvas = document.createElement('canvas');
-        this.backgroundCanvas.width = this.width;
-        this.backgroundCanvas.height = this.height;
         this.backgroundContext = this.backgroundCanvas.getContext('2d');
-        this.drawBackground();
+        this.updateBackground();
 
         this.element.appendChild(this.canvas);
 
         // Предзагружаем шрифт
         this.context.font = '22px DS-Digital-Italic';
+    }
+
+    resize() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+        this.width = this.canvas.width;
+        this.height = this.canvas.height;
+        
+        if (this.backgroundCanvas) {
+            this.updateBackground();
+        }
+    }
+
+    updateBackground() {
+        this.backgroundCanvas.width = this.width;
+        this.backgroundCanvas.height = this.height;
+        this.drawBackground();
     }
 
     drawBackground() {
@@ -46,8 +60,8 @@ export default class View {
         this.backgroundContext.fillRect(0, 0, this.width, this.height);
 
         // Рисуем пустые ячейки (сетку)
-        for (let y = 0; y < 25; y++) {
-            for (let x = 0; x < 25; x++) {
+        for (let y = 0; y < 30; y++) {
+            for (let x = 0; x < 50; x++) {
                 this.renderEmptyCell(x, y, this.backgroundContext);
             }
         }
@@ -57,11 +71,11 @@ export default class View {
         const xPos = x * this.cellSize;
         const yPos = y * this.cellSize;
 
-        // Внешний прямоугольник (рамка) - полупрозрачный
+        // Внешний прямоугольник (рамка)
         ctx.fillStyle = this.colors.empty;
         ctx.fillRect(xPos, yPos, this.cellSize - 2, this.cellSize - 2);
 
-        // Внутренняя область - заливаем фоном вместо clearRect
+        // Внутренняя область
         ctx.fillStyle = this.colors.background;
         ctx.fillRect(
             xPos + this.cellPadding,
@@ -70,7 +84,7 @@ export default class View {
             this.cellSize - 2 * this.cellPadding - 2
         );
 
-        // Внутренний квадрат - полупрозрачный
+        // Внутренний квадрат
         ctx.fillStyle = this.colors.empty;
         ctx.fillRect(
             xPos + this.innerCellOffset,
@@ -84,33 +98,56 @@ export default class View {
         // Копируем фон на основной canvas
         this.context.drawImage(this.backgroundCanvas, 0, 0);
 
-        // Рисуем игровое поле (заполненные ячейки)
-        this.renderPlayField(data.playField);
+        // Рисуем игровое поле с учетом неуязвимости
+        this.renderPlayField(data.playField, data.players);
 
         // Рисуем UI
         this.renderPlayers(data.players, myPlayerId);
     }
 
-    renderPlayField(playField) {
+    renderPlayField(playField, players) {
+        const now = Date.now();
+
         // Рисуем только заполненные ячейки поверх фона
         for (let y = 0; y < playField.length; y++) {
             for (let x = 0; x < playField[y].length; x++) {
                 if (playField[y][x] === 1) {
-                    this.renderFilledCell(x, y);
+                    // Проверяем, принадлежит ли ячейка неуязвимому игроку
+                    let isInvulnerable = false;
+                    
+                    for (const playerId in players) {
+                        const player = players[playerId];
+                        if (player.invulnerableUntil && now < player.invulnerableUntil) {
+                            // Проверяем, находится ли ячейка в области игрока
+                            if (x >= player.x && x < player.x + 3 && 
+                                y >= player.y && y < player.y + 3) {
+                                isInvulnerable = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    this.renderFilledCell(x, y, isInvulnerable, now);
                 }
             }
         }
     }
 
-    renderFilledCell(x, y) {
+    renderFilledCell(x, y, isInvulnerable = false, now = Date.now()) {
         const xPos = x * this.cellSize;
         const yPos = y * this.cellSize;
 
-        // Внешний прямоугольник (рамка) - полностью черный
-        this.context.fillStyle = this.colors.filled;
+        // Мерцание для неуязвимых (каждые 200ms)
+        let fillStyle = this.colors.filled;
+        if (isInvulnerable && Math.floor(now / 200) % 2 === 0) {
+            fillStyle = this.colors.invulnerable;
+        }
+
+        // Внешний прямоугольник
+        this.context.fillStyle = fillStyle;
         this.context.fillRect(xPos, yPos, this.cellSize - 2, this.cellSize - 2);
 
-        // Внутренняя область - заливаем фоном вместо clearRect
+        // Внутренняя область
         this.context.fillStyle = this.colors.background;
         this.context.fillRect(
             xPos + this.cellPadding,
@@ -119,8 +156,8 @@ export default class View {
             this.cellSize - 2 * this.cellPadding - 2
         );
 
-        // Внутренний квадрат - полностью черный
-        this.context.fillStyle = this.colors.filled;
+        // Внутренний квадрат
+        this.context.fillStyle = fillStyle;
         this.context.fillRect(
             xPos + this.innerCellOffset,
             yPos + this.innerCellOffset,
@@ -130,9 +167,18 @@ export default class View {
     }
 
     renderPlayers(players, myPlayerId) {
-        // Очищаем область UI (правую панель)
-        this.context.fillStyle = this.colors.background;
-        this.context.fillRect(550, 0, this.width - 550, this.height);
+        // Рассчитываем позицию UI панели (справа)
+        const uiWidth = 300;
+        const uiX = this.width - uiWidth;
+
+        // Очищаем область UI
+        this.context.fillStyle = 'rgba(154, 166, 128, 0.95)';
+        this.context.fillRect(uiX, 0, uiWidth, this.height);
+
+        // Рамка UI
+        this.context.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+        this.context.lineWidth = 2;
+        this.context.strokeRect(uiX, 0, uiWidth, this.height);
 
         this.context.font = '22px DS-Digital-Italic';
         this.context.fillStyle = this.colors.empty;
@@ -144,18 +190,17 @@ export default class View {
         // Сортируем игроков по рейтингу
         playersArray.sort((a, b) => b[1].rating - a[1].rating);
 
-        // Отрисовка списка игроков с цветовой индикацией
+        // Отрисовка списка игроков
         for (let i = 0; i < playersArray.length; i++) {
             const [playerId, player] = playersArray[i];
             countPlayers++;
             playerPosition += 25;
 
-            // Выделяем текущего игрока
             const isMe = playerId === myPlayerId;
             const isBot = player.isBot;
             const isDead = !player.status;
 
-            // Выбираем цвет для игрока
+            // Выбираем цвет
             let color = this.colors.filled;
             if (isMe) {
                 color = '#00AA00'; // Зеленый для текущего игрока
@@ -167,39 +212,41 @@ export default class View {
 
             this.context.fillStyle = color;
 
-            // Добавляем индикаторы
+            // Индикаторы
             const prefix = isMe ? '► ' : isBot ? '[B] ' : '';
             const status = isDead ? ' [DEAD]' : '';
             const text = `${i + 1}: ${prefix}${player.name} - ${player.rating}${status}`;
 
-            this.context.fillText(text, 560, playerPosition);
+            this.context.fillText(text, uiX + 10, playerPosition);
         }
 
         // Заголовок
         this.context.fillStyle = this.colors.filled;
-        this.context.fillText('Players: ' + countPlayers, 560, 20);
+        this.context.fillText('Players: ' + countPlayers, uiX + 10, 20);
 
-        // Мини-карта (опционально, для больших игр)
+        // Мини-карта (если игроков больше 2)
         if (countPlayers > 2) {
-            this.renderMiniMap(players, myPlayerId);
+            this.renderMiniMap(players, myPlayerId, uiX);
         }
     }
 
-    renderMiniMap(players, myPlayerId) {
-        const miniMapX = 560;
-        const miniMapY = 350;
-        const miniMapSize = 150;
-        const scale = miniMapSize / 25; // 25 - размер поля
+    renderMiniMap(players, myPlayerId, uiX) {
+        const miniMapX = uiX + 20;
+        const miniMapY = Math.min(this.height - 220, 400);
+        const miniMapHeight = 250;
+        const miniMapWidth = 150;
+        const scale = miniMapHeight / 50;
 
         // Фон мини-карты
-        this.context.fillStyle = 'rgba(0, 0, 0, 0.1)';
-        this.context.fillRect(miniMapX, miniMapY, miniMapSize, miniMapSize);
+        this.context.fillStyle = 'rgba(0, 0, 0, 0.15)';
+        this.context.fillRect(miniMapX, miniMapY, miniMapHeight, miniMapWidth);
 
         // Рамка
         this.context.strokeStyle = 'rgba(0, 0, 0, 0.5)';
-        this.context.strokeRect(miniMapX, miniMapY, miniMapSize, miniMapSize);
+        this.context.lineWidth = 2;
+        this.context.strokeRect(miniMapX, miniMapY, miniMapHeight, miniMapWidth);
 
-        // Отображение игроков на мини-карте
+        // Отображение игроков
         for (const playerId in players) {
             const player = players[playerId];
             if (!player.status) continue;
@@ -208,18 +255,19 @@ export default class View {
             const x = miniMapX + player.x * scale;
             const y = miniMapY + player.y * scale;
 
+            // Цвет точки
             this.context.fillStyle = isMe ? '#00AA00' : player.isBot ? '#FF4444' : '#4ECDC4';
             this.context.beginPath();
-            this.context.arc(x + scale, y + scale, isMe ? 4 : 3, 0, Math.PI * 2);
+            this.context.arc(x + scale, y + scale, isMe ? 5 : 3, 0, Math.PI * 2);
             this.context.fill();
 
             // Направление взгляда
             let dirX = 0, dirY = 0;
             switch (player.position) {
-                case 'top': dirY = -6; break;
-                case 'bottom': dirY = 6; break;
-                case 'left': dirX = 6; break;
-                case 'right': dirX = -6; break;
+                case 'top': dirY = -8; break;
+                case 'bottom': dirY = 8; break;
+                case 'left': dirX = 8; break;
+                case 'right': dirX = -8; break;
             }
 
             if (dirX || dirY) {
@@ -234,8 +282,8 @@ export default class View {
 
         // Заголовок мини-карты
         this.context.fillStyle = this.colors.filled;
-        this.context.font = '16px DS-Digital-Italic';
-        this.context.fillText('Mini Map', miniMapX, miniMapY - 5);
-        this.context.font = '22px DS-Digital-Italic'; // Восстанавливаем шрифт
+        this.context.font = '18px DS-Digital-Italic';
+        this.context.fillText('Mini Map', miniMapX, miniMapY - 10);
+        this.context.font = '22px DS-Digital-Italic';
     }
 }
