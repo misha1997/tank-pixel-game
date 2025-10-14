@@ -26,6 +26,8 @@ export default class View {
             invulnerable: 'rgba(255, 215, 0)',
         };
 
+        // Кеш для оптимизации рендеринга (только фон)
+
         // Создаем статичный фоновый canvas
         this.backgroundCanvas = document.createElement('canvas');
         this.backgroundContext = this.backgroundCanvas.getContext('2d');
@@ -105,6 +107,7 @@ export default class View {
         this.renderPlayers(data.players, myPlayerId);
     }
 
+
     renderPlayField(playField, players) {
         const now = Date.now();
 
@@ -112,33 +115,41 @@ export default class View {
         for (let y = 0; y < playField.length; y++) {
             for (let x = 0; x < playField[y].length; x++) {
                 if (playField[y][x] === 1) {
-                    // Проверяем, принадлежит ли ячейка неуязвимому игроку
+                    // Находим игрока, которому принадлежит эта ячейка
                     let isInvulnerable = false;
+                    let playerColor = null;
                     
                     for (const playerId in players) {
                         const player = players[playerId];
-                        if (player.invulnerableUntil && now < player.invulnerableUntil) {
+                        if (player && player.status) {
                             // Проверяем, находится ли ячейка в области игрока
                             if (x >= player.x && x < player.x + 3 && 
                                 y >= player.y && y < player.y + 3) {
-                                isInvulnerable = true;
+                                playerColor = player.color;
+                                
+                                // Проверяем неуязвимость
+                                if (player.invulnerableUntil && now < player.invulnerableUntil) {
+                                    isInvulnerable = true;
+                                }
                                 break;
                             }
                         }
                     }
                     
-                    this.renderFilledCell(x, y, isInvulnerable, now);
+                    this.renderFilledCell(x, y, isInvulnerable, now, playerColor);
                 }
             }
         }
     }
 
-    renderFilledCell(x, y, isInvulnerable = false, now = Date.now()) {
+    renderFilledCell(x, y, isInvulnerable = false, now = Date.now(), playerColor = null) {
         const xPos = x * this.cellSize;
         const yPos = y * this.cellSize;
 
+        // Определяем цвет ячейки
+        let fillStyle = playerColor || this.colors.filled;
+        
         // Мерцание для неуязвимых (каждые 200ms)
-        let fillStyle = this.colors.filled;
         if (isInvulnerable && Math.floor(now / 200) % 2 === 0) {
             fillStyle = this.colors.invulnerable;
         }
@@ -201,13 +212,9 @@ export default class View {
             const isDead = !player.status;
 
             // Выбираем цвет
-            let color = this.colors.filled;
-            if (isMe) {
-                color = '#00AA00'; // Зеленый для текущего игрока
-            } else if (isDead) {
+            let color = player.color || this.colors.filled;
+            if (isDead) {
                 color = '#888888'; // Серый для мертвых
-            } else if (isBot) {
-                color = '#FF4444'; // Красный для ботов
             }
 
             this.context.fillStyle = color;
@@ -256,7 +263,7 @@ export default class View {
             const y = miniMapY + player.y * scale;
 
             // Цвет точки
-            this.context.fillStyle = isMe ? '#00AA00' : player.isBot ? '#FF4444' : '#4ECDC4';
+            this.context.fillStyle = player.color || (isMe ? '#00AA00' : player.isBot ? '#FF4444' : '#4ECDC4');
             this.context.beginPath();
             this.context.arc(x + scale, y + scale, isMe ? 5 : 3, 0, Math.PI * 2);
             this.context.fill();
