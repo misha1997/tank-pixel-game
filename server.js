@@ -32,6 +32,9 @@ const activeBullets = new Map();
 let bulletIdCounter = 0;
 let lastGameUpdate = 0;
 
+// Стены на игровом поле
+const walls = [];
+
 // Размер игрового поля
 const size = {
   col: 50,
@@ -77,6 +80,42 @@ function generatePlayField() {
 }
 
 generatePlayField();
+
+// Создание стен на игровом поле
+function generateWalls() {
+  // Очищаем существующие стены
+  walls.length = 0;
+  
+  // Стена 1: Вертикальная стена слева
+  for (let y = 8; y < 22; y++) {
+    walls.push({ x: 15, y: y, type: 'wall' });
+  }
+  
+  // Стена 2: Горизонтальная стена сверху
+  for (let x = 20; x < 35; x++) {
+    walls.push({ x: x, y: 10, type: 'wall' });
+  }
+  
+  // Стена 3: Вертикальная стена справа
+  for (let y = 5; y < 18; y++) {
+    walls.push({ x: 35, y: y, type: 'wall' });
+  }
+  
+  // Стена 4: Короткая горизонтальная стена снизу
+  for (let x = 8; x < 15; x++) {
+    walls.push({ x: x, y: 20, type: 'wall' });
+  }
+  
+  // Стена 5: L-образная стена
+  for (let x = 40; x < 45; x++) {
+    walls.push({ x: x, y: 20, type: 'wall' });
+  }
+  for (let y = 20; y < 25; y++) {
+    walls.push({ x: 40, y: y, type: 'wall' });
+  }
+}
+
+generateWalls();
 
 // Инициализация пула пуль
 function initializeBulletPool() {
@@ -154,7 +193,7 @@ function getSafeSpawnPosition() {
     let isSafe = true;
     for (const playerId in players) {
       const player = players[playerId];
-      if (player.status && Math.abs(player.x - x) < 5 && Math.abs(player.y - y) < 5) {
+      if (player.status && Math.abs(player.x - x) < 5 && Math.abs(player.y - y) < 5 && !checkWallCollision(x, y, player.position)) {
         isSafe = false;
         break;
       }
@@ -290,6 +329,13 @@ function checkBulletHit(bullet, shooterId, bulletId) {
     return true;
   }
 
+  // Проверяем столкновение со стенами
+  for (const wall of walls) {
+    if (wall.x === bullet.x && wall.y === bullet.y) {
+      return true; // Пуля попадает в стену
+    }
+  }
+
   const now = Date.now();
 
   for (const playerId in players) {
@@ -322,6 +368,31 @@ function checkBulletHit(bullet, shooterId, bulletId) {
   return false;
 }
 
+// Проверка столкновения со стенами
+function checkWallCollision(newX, newY, position) {
+  const playerPiece = positionPiece[position];
+  if (!playerPiece) return false;
+
+  // Проверяем каждую ячейку танка на столкновение со стенами
+  for (let y = 0; y < 3; y++) {
+    for (let x = 0; x < 3; x++) {
+      if (playerPiece[y][x] === 1) {
+        const checkX = newX + x;
+        const checkY = newY + y;
+
+        // Проверяем, есть ли стена в этой позиции
+        for (const wall of walls) {
+          if (wall.x === checkX && wall.y === checkY) {
+            return true; // Столкновение со стеной
+          }
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
 // Перемещение игрока с проверкой столкновений
 function movePlayer(playerId, dx, dy, position) {
   const player = players[playerId];
@@ -337,6 +408,11 @@ function movePlayer(playerId, dx, dy, position) {
   const newY = player.y + dy;
 
   if (newX < 0 || newX > size.col - 3 || newY < 0 || newY > size.row - 3) return;
+
+  // Проверяем столкновение со стенами
+  if (checkWallCollision(newX, newY, position)) {
+    return; // Блокируем движение при столкновении со стеной
+  }
 
   const collidedPlayer = checkPlayerCollision(player, newX, newY, position);
   if (collidedPlayer) {
@@ -519,6 +595,7 @@ function updateGameState() {
   io.sockets.emit('state', {
     playField,
     players,
+    walls,
   });
 }
 
@@ -720,7 +797,7 @@ function detectCollisionThreat(botId) {
   const bot = players[botId];
   if (!bot) return null;
 
-  const DANGER_DISTANCE = 4; // Критическое расстояние
+  const DANGER_DISTANCE = 5; // Критическое расстояние
   let closestThreat = null;
   let minDist = Infinity;
 
@@ -852,7 +929,7 @@ function isSafeFromCollisions(botId, newX, newY, position) {
   const bot = players[botId];
   if (!bot) return false;
 
-  const SAFE_DISTANCE = 4; // Минимальное безопасное расстояние
+  const SAFE_DISTANCE = 10; // Минимальное безопасное расстояние
   const playerPiece = positionPiece[position];
   if (!playerPiece) return false;
 
@@ -870,7 +947,7 @@ function isSafeFromCollisions(botId, newX, newY, position) {
     const dist = Math.abs(newX - otherPlayer.x) + Math.abs(newY - otherPlayer.y);
 
     // Быстрая проверка расстояния
-    if (dist < SAFE_DISTANCE) {
+    if (dist <= SAFE_DISTANCE) {
       // Детальная проверка пересечения
       const otherPiece = positionPiece[otherPlayer.position];
       if (!otherPiece) continue;
@@ -1062,7 +1139,7 @@ function simplePatrol(botId) {
   const newY = bot.y + move.dy;
 
   if (newX >= 0 && newX < size.col - 3 && newY >= 0 && newY < size.row - 3) {
-    if (isSafePosition(botId, newX, newY, move.pos)) {
+    if (isSafePosition(botId, newX, newY, move.pos) && !checkWallCollision(newX, newY, move.pos)) {
       tryMove(botId, move.dx, move.dy, move.pos);
     }
   }
@@ -1311,7 +1388,7 @@ function smartHunt(botId, target) {
 
   // Выбираем первое безопасное движение
   for (const move of moves) {
-    if (isSafePosition(botId, bot.x + move.dx, bot.y + move.dy, move.pos)) {
+    if (isSafePosition(botId, bot.x + move.dx, bot.y + move.dy, move.pos) && !checkWallCollision(bot.x + move.dx, bot.y + move.dy, move.pos)) {
       return move;
     }
   }
@@ -1332,7 +1409,7 @@ function tacticalRetreat(botId) {
   };
 
   const retreat = retreats[bot.position];
-  if (retreat && isSafePosition(botId, bot.x + retreat.dx, bot.y + retreat.dy, retreat.pos)) {
+  if (retreat && isSafePosition(botId, bot.x + retreat.dx, bot.y + retreat.dy, retreat.pos) && !checkWallCollision(bot.x + retreat.dx, bot.y + retreat.dy, retreat.pos)) {
     tryMove(botId, retreat.dx, retreat.dy, retreat.pos);
   }
 }
@@ -1369,7 +1446,7 @@ function smartPatrol(botId) {
       const newY = bot.y + move.dy;
 
       if (isSafeFromCollisions(botId, newX, newY, move.pos) &&
-        isSafePosition(botId, newX, newY, move.pos)) {
+        isSafePosition(botId, newX, newY, move.pos) && !checkWallCollision(newX, newY, move.pos)) {
         if (tryMove(botId, move.dx, move.dy, move.pos)) return;
       }
     }
@@ -1431,7 +1508,9 @@ function tryMove(botId, dx, dy, position) {
 
   const collidedPlayer = checkPlayerCollision(bot, newX, newY, position);
 
-  if (!collidedPlayer) {
+  const collidedWall = checkWallCollision(newX, newY, position);
+
+  if (!collidedPlayer && !collidedWall) {
     bot.x = newX;
     bot.y = newY;
     bot.position = position;

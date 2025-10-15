@@ -100,6 +100,9 @@ export default class View {
         // Копируем фон на основной canvas
         this.context.drawImage(this.backgroundCanvas, 0, 0);
 
+        // Рисуем стены
+        this.renderWalls(data.walls);
+
         // Рисуем игровое поле с учетом неуязвимости
         this.renderPlayField(data.playField, data.players);
 
@@ -107,6 +110,45 @@ export default class View {
         this.renderPlayers(data.players, myPlayerId);
     }
 
+
+    renderWalls(walls) {
+        if (!walls) return;
+
+        // Цвет стен
+        this.context.fillStyle = '#654321'; // Коричневый цвет для стен
+
+        // Рисуем каждую стену
+        for (const wall of walls) {
+            this.renderWallCell(wall.x, wall.y);
+        }
+    }
+
+    renderWallCell(x, y) {
+        const xPos = x * this.cellSize;
+        const yPos = y * this.cellSize;
+
+        // Внешний прямоугольник (темная рамка)
+        this.context.fillStyle = '#4a2c17';
+        this.context.fillRect(xPos, yPos, this.cellSize - 2, this.cellSize - 2);
+
+        // Внутренняя область (основной цвет стены)
+        this.context.fillStyle = '#654321';
+        this.context.fillRect(
+            xPos + this.cellPadding,
+            yPos + this.cellPadding,
+            this.cellSize - 2 * this.cellPadding - 2,
+            this.cellSize - 2 * this.cellPadding - 2
+        );
+
+        // Внутренний квадрат (светлый акцент)
+        this.context.fillStyle = '#8b4513';
+        this.context.fillRect(
+            xPos + this.innerCellOffset,
+            yPos + this.innerCellOffset,
+            this.innerCellSize,
+            this.innerCellSize
+        );
+    }
 
     renderPlayField(playField, players) {
         const now = Date.now();
