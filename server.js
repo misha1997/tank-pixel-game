@@ -187,15 +187,31 @@ function returnBulletToPool(bulletId) {
 function getSafeSpawnPosition() {
   let attempts = 0;
   const maxAttempts = 50;
+  const positions = ['top', 'left', 'right', 'bottom'];
 
   while (attempts < maxAttempts) {
     const x = randomInteger(size.col - 3);
     const y = randomInteger(size.row - 3);
 
     let isSafe = true;
+
+    // Проверяем, что позиция не в стене (проверяем все 4 варианта поворота)
+    let inWall = false;
+    for (const pos of positions) {
+      if (checkWallCollision(x, y, pos)) {
+        inWall = true;
+        break;
+      }
+    }
+    if (inWall) {
+      attempts++;
+      continue;
+    }
+
+    // Проверяем расстояние до других игроков
     for (const playerId in players) {
       const player = players[playerId];
-      if (player.status && Math.abs(player.x - x) < 5 && Math.abs(player.y - y) < 5 && !checkWallCollision(x, y, player.position)) {
+      if (player.status && Math.abs(player.x - x) < 5 && Math.abs(player.y - y) < 5) {
         isSafe = false;
         break;
       }
@@ -299,6 +315,13 @@ function createBullet(playerId) {
     return; // Пуля за пределами поля - не создаем
   }
 
+  // Проверяем, что пуля не создается внутри стены
+  for (const wall of walls) {
+    if (wall.x === bulletX && wall.y === bulletY) {
+      return; // Пуля в стене - не создаем
+    }
+  }
+
   const bullet = getBulletFromPool();
   bullet.position = player.position;
   bullet.x = bulletX;
@@ -321,8 +344,21 @@ function createBullet(playerId) {
       return;
     }
 
-    bullet.x += bullet.dx;
-    bullet.y += bullet.dy;
+    // Проверяем следующую позицию перед движением
+    const nextX = bullet.x + bullet.dx;
+    const nextY = bullet.y + bullet.dy;
+
+    // Проверяем столкновение со стеной на пути
+    for (const wall of walls) {
+      if (wall.x === nextX && wall.y === nextY) {
+        returnBulletToPool(bullet.id);
+        delete player.bullets[bullet.id];
+        return;
+      }
+    }
+
+    bullet.x = nextX;
+    bullet.y = nextY;
 
     if (checkBulletHit(bullet, playerId, bullet.id)) {
       returnBulletToPool(bullet.id);
@@ -770,7 +806,22 @@ function botAI(botId) {
     }
   }
 
-  // 1. Быстрая проверка опасных пуль
+  // Очищаем устаревшие целевые позиции
+  if (memory.targetPosition && now - memory.targetPosition.timestamp > 500) {
+    memory.targetPosition = null;
+  }
+
+  // 1. Проверка слишком близкого расстояния к другим ботам
+  const botThreat = detectBotCollisionThreat(botId);
+  if (botThreat && now - memory.lastCollisionAvoidance > 300) {
+    const avoidance = calculateBotAvoidance(botId, botThreat);
+    if (avoidance && tryMove(botId, avoidance.dx, avoidance.dy, avoidance.pos)) {
+      memory.lastCollisionAvoidance = now;
+      return;
+    }
+  }
+
+  // 2. Быстрая проверка опасных пуль
   const dangerousBullets = findDangerousBullets(botId);
   if (dangerousBullets.length > 0 && now - memory.lastDodge > 200) {
     const evasion = calculateBestEvasion(botId, dangerousBullets);
@@ -780,19 +831,19 @@ function botAI(botId) {
     }
   }
 
-  // 2. Поиск цели с увеличенным радиусом
+  // 3. Поиск цели с увеличенным радиусом
   const target = findBestTarget(botId);
 
   if (target) {
     const distance = Math.abs(bot.x - target.x) + Math.abs(bot.y - target.y);
 
-    // 3. Стрельба по цели (увеличенная дистанция)
+    // 4. Стрельба по цели (увеличенная дистанция)
     if (isTargetInLine(bot, target) && distance < BOT_SHOOT_DISTANCE + 5) {
       // Проверяем кулдаун после респавна для ботов
       if (now < bot.respawnShootingCooldown) {
         return; // Бот не стреляет в течение 2 секунд после респавна
       }
-      
+
       if (now - bot.lastShot > BULLET_COOLDOWN) {
         bot.lastShot = now;
         createBullet(botId);
@@ -800,15 +851,120 @@ function botAI(botId) {
       }
     }
 
-    // 4. Агрессивное преследование
-    const huntMove = simpleHunt(botId, target);
+    // 5. Агрессивное преследование с проверкой безопасности
+    const huntMove = smartHuntWithCollisionAvoidance(botId, target);
     if (huntMove && tryMove(botId, huntMove.dx, huntMove.dy, huntMove.pos)) {
       return;
     }
   }
 
-  // 5. Улучшенное патрулирование
-  simplePatrol(botId);
+  // 6. Улучшенное патрулирование
+  smartPatrol(botId);
+}
+
+// Обнаружение угрозы столкновения с другими ботами
+function detectBotCollisionThreat(botId) {
+  const bot = players[botId];
+  if (!bot) return null;
+
+  const BOT_DANGER_DISTANCE = 6; // Расстояние для активации избегания
+  const CRITICAL_DISTANCE = 3;   // Критическое расстояние
+
+  let closestThreat = null;
+  let minDist = Infinity;
+
+  const now = Date.now();
+
+  for (const playerId in players) {
+    if (playerId === botId) continue;
+
+    const other = players[playerId];
+    if (!other || !other.status) continue;
+    if (!other.isBot) continue; // Проверяем только других ботов
+
+    // Пропускаем взрывающихся
+    if (other.exploding && now < other.explosionEndTime) continue;
+
+    const dist = Math.abs(bot.x - other.x) + Math.abs(bot.y - other.y);
+
+    if (dist < BOT_DANGER_DISTANCE && dist < minDist) {
+      minDist = dist;
+      closestThreat = {
+        player: other,
+        distance: dist,
+        playerId: playerId,
+        isCritical: dist <= CRITICAL_DISTANCE
+      };
+    }
+  }
+
+  return closestThreat;
+}
+
+// Расчет маневра для избегания другого бота
+function calculateBotAvoidance(botId, threat) {
+  const bot = players[botId];
+  if (!bot || !threat) return null;
+
+  const other = threat.player;
+  const dx = other.x - bot.x;
+  const dy = other.y - bot.y;
+
+  // Возможные направления для отхода
+  const moves = [];
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    // Другой бот справа/слева - отходим вверх/вниз
+    if (bot.y > size.row / 2) {
+      moves.push({ dx: 0, dy: -1, pos: 'top' });
+      moves.push({ dx: 0, dy: 1, pos: 'bottom' });
+    } else {
+      moves.push({ dx: 0, dy: 1, pos: 'bottom' });
+      moves.push({ dx: 0, dy: -1, pos: 'top' });
+    }
+    // Также пробуем диагонали
+    moves.push({ dx: 1, dy: -1, pos: 'top' });
+    moves.push({ dx: -1, dy: -1, pos: 'top' });
+    moves.push({ dx: 1, dy: 1, pos: 'bottom' });
+    moves.push({ dx: -1, dy: 1, pos: 'bottom' });
+  } else {
+    // Другой бот сверху/снизу - отходим влево/вправо
+    if (bot.x > size.col / 2) {
+      moves.push({ dx: -1, dy: 0, pos: 'right' });
+      moves.push({ dx: 1, dy: 0, pos: 'left' });
+    } else {
+      moves.push({ dx: 1, dy: 0, pos: 'left' });
+      moves.push({ dx: -1, dy: 0, pos: 'right' });
+    }
+    // Также пробуем диагонали
+    moves.push({ dx: -1, dy: 1, pos: 'bottom' });
+    moves.push({ dx: -1, dy: -1, pos: 'top' });
+    moves.push({ dx: 1, dy: 1, pos: 'bottom' });
+    moves.push({ dx: 1, dy: -1, pos: 'top' });
+  }
+
+  // При критическом расстоянии добавляем отступление назад
+  if (threat.isCritical) {
+    if (dx > 0) moves.unshift({ dx: -1, dy: 0, pos: 'right' }); // Отходим влево
+    if (dx < 0) moves.unshift({ dx: 1, dy: 0, pos: 'left' });   // Отходим вправо
+    if (dy > 0) moves.unshift({ dx: 0, dy: -1, pos: 'bottom' }); // Отходим вверх
+    if (dy < 0) moves.unshift({ dx: 0, dy: 1, pos: 'top' });     // Отходим вниз
+  }
+
+  // Выбираем первое безопасное движение
+  for (const move of moves) {
+    const newX = bot.x + move.dx;
+    const newY = bot.y + move.dy;
+
+    if (newX >= 0 && newX < size.col - 3 && newY >= 0 && newY < size.row - 3) {
+      if (!checkWallCollision(newX, newY, move.pos) &&
+          isSafeFromCollisions(botId, newX, newY, move.pos)) {
+        return move;
+      }
+    }
+  }
+
+  return null;
 }
 
 // Обнаружение угрозы столкновения
@@ -945,12 +1101,13 @@ function calculateCollisionAvoidance(botId, threat) {
   return null;
 }
 
-// Проверка безопасности от столкновений
+// Проверка безопасности от столкновений с учетом предсказания движения
 function isSafeFromCollisions(botId, newX, newY, position) {
   const bot = players[botId];
   if (!bot) return false;
 
-  const SAFE_DISTANCE = 10; // Минимальное безопасное расстояние
+  const SAFE_DISTANCE = 6; // Уменьшено с 10 до 6 для более точной проверки
+  const MIN_DISTANCE = 4;  // Минимальное безопасное расстояние (2 клетки буфера)
   const playerPiece = positionPiece[position];
   if (!playerPiece) return false;
 
@@ -967,6 +1124,11 @@ function isSafeFromCollisions(botId, newX, newY, position) {
     if (botInvulnerable || otherInvulnerable || otherExploding) continue;
 
     const dist = Math.abs(newX - otherPlayer.x) + Math.abs(newY - otherPlayer.y);
+
+    // Проверка на слишком близкое расстояние
+    if (dist < MIN_DISTANCE) {
+      return false;
+    }
 
     // Быстрая проверка расстояния
     if (dist <= SAFE_DISTANCE) {
@@ -987,7 +1149,7 @@ function isSafeFromCollisions(botId, newX, newY, position) {
                 const otherX = otherPlayer.x + ox;
                 const otherY = otherPlayer.y + oy;
 
-                // Проверяем пересечение с буфером
+                // Проверяем пересечение
                 if (Math.abs(checkX - otherX) <= 1 && Math.abs(checkY - otherY) <= 1) {
                   return false;
                 }
@@ -995,6 +1157,16 @@ function isSafeFromCollisions(botId, newX, newY, position) {
             }
           }
         }
+      }
+    }
+
+    // Проверка на конфликт целевых позиций с другими ботами
+    const otherMemory = botMemory[playerId];
+    if (otherMemory && otherMemory.targetPosition) {
+      const targetDist = Math.abs(newX - otherMemory.targetPosition.x) +
+                        Math.abs(newY - otherMemory.targetPosition.y);
+      if (targetDist < 3) {
+        return false; // Другой бот уже целится в эту позицию
       }
     }
   }
@@ -1017,25 +1189,25 @@ function smartHuntWithCollisionAvoidance(botId, target) {
 
   // Приоритет: выравнивание для выстрела
   if (absX > absY) {
-    if (dx > 0) moves.push({ dx: 1, dy: 0, pos: 'left', priority: 3 });    // Цель справа - идем вправо, смотрим влево
-    else moves.push({ dx: -1, dy: 0, pos: 'right', priority: 3 });         // Цель слева - идем влево, смотрим вправо
+    if (dx > 0) moves.push({ dx: 1, dy: 0, pos: 'left', priority: 3 });      // Цель справа - идем вправо, смотрим вправо
+    else moves.push({ dx: -1, dy: 0, pos: 'right', priority: 3 });         // Цель слева - идем влево, смотрим влево
 
-    if (dy > 0) moves.push({ dx: 0, dy: 1, pos: 'top', priority: 2 });      // Цель снизу - идем вниз, смотрим вверх
-    else if (dy < 0) moves.push({ dx: 0, dy: -1, pos: 'bottom', priority: 2 }); // Цель сверху - идем вверх, смотрим вниз
+    if (dy > 0) moves.push({ dx: 0, dy: 1, pos: 'bottom', priority: 2 });     // Цель снизу - идем вниз, смотрим вниз
+    else if (dy < 0) moves.push({ dx: 0, dy: -1, pos: 'top', priority: 2 });    // Цель сверху - идем вверх, смотрим вверх
   } else {
-    if (dy > 0) moves.push({ dx: 0, dy: 1, pos: 'top', priority: 3 });      // Цель снизу - идем вниз, смотрим вверх
-    else moves.push({ dx: 0, dy: -1, pos: 'bottom', priority: 3 });          // Цель сверху - идем вверх, смотрим вниз
+    if (dy > 0) moves.push({ dx: 0, dy: 1, pos: 'bottom', priority: 3 });        // Цель снизу - идем вниз, смотрим вниз
+    else moves.push({ dx: 0, dy: -1, pos: 'top', priority: 3 });            // Цель сверху - идем вверх, смотрим вверх
 
-    if (dx > 0) moves.push({ dx: 1, dy: 0, pos: 'left', priority: 2 });     // Цель справа - идем вправо, смотрим влево
-    else if (dx < 0) moves.push({ dx: -1, dy: 0, pos: 'right', priority: 2 }); // Цель слева - идем влево, смотрим вправо
+    if (dx > 0) moves.push({ dx: 1, dy: 0, pos: 'left', priority: 2 });       // Цель справа - идем вправо, смотрим вправо
+    else if (dx < 0) moves.push({ dx: -1, dy: 0, pos: 'right', priority: 2 });   // Цель слева - идем влево, смотрим влево
   }
 
   // Добавляем диагональные маневры для агрессивных ботов
   if (memory.aggressionLevel > 0.7) {
-    if (dx > 0 && dy > 0) moves.push({ dx: 1, dy: 1, pos: 'top', priority: 2 });      // Вправо-вниз, смотрим вверх
-    if (dx < 0 && dy > 0) moves.push({ dx: -1, dy: 1, pos: 'top', priority: 2 });    // Влево-вниз, смотрим вверх
-    if (dx > 0 && dy < 0) moves.push({ dx: 1, dy: -1, pos: 'bottom', priority: 2 }); // Вправо-вверх, смотрим вниз
-    if (dx < 0 && dy < 0) moves.push({ dx: -1, dy: -1, pos: 'bottom', priority: 2 }); // Влево-вверх, смотрим вниз
+    if (dx > 0 && dy > 0) moves.push({ dx: 1, dy: 1, pos: 'bottom', priority: 2 });     // Вправо-вниз, смотрим вниз
+    if (dx < 0 && dy > 0) moves.push({ dx: -1, dy: 1, pos: 'bottom', priority: 2 });   // Влево-вниз, смотрим вниз
+    if (dx > 0 && dy < 0) moves.push({ dx: 1, dy: -1, pos: 'top', priority: 2 });      // Вправо-вверх, смотрим вверх
+    if (dx < 0 && dy < 0) moves.push({ dx: -1, dy: -1, pos: 'top', priority: 2 });    // Влево-вверх, смотрим вверх
   }
 
   moves.sort((a, b) => b.priority - a.priority);
@@ -1096,12 +1268,12 @@ function simpleHunt(botId, target) {
   // Исправленная логика движения к цели
   if (Math.abs(dx) > Math.abs(dy)) {
     // Движемся по X-оси
-    if (dx > 0) return { dx: 1, dy: 0, pos: 'left' };   // Цель справа - идем вправо, смотрим влево
-    else return { dx: -1, dy: 0, pos: 'right' };       // Цель слева - идем влево, смотрим вправо
+    if (dx > 0) return { dx: 1, dy: 0, pos: 'left' };   // Цель справа - идем вправо, смотрим вправо
+    else return { dx: -1, dy: 0, pos: 'right' };       // Цель слева - идем влево, смотрим влево
   } else {
     // Движемся по Y-оси
-    if (dy > 0) return { dx: 0, dy: 1, pos: 'top' };    // Цель снизу - идем вниз, смотрим вверх
-    else return { dx: 0, dy: -1, pos: 'bottom' };       // Цель сверху - идем вверх, смотрим вниз
+    if (dy > 0) return { dx: 0, dy: 1, pos: 'bottom' };    // Цель снизу - идем вниз, смотрим вниз
+    else return { dx: 0, dy: -1, pos: 'top' };       // Цель сверху - идем вверх, смотрим вверх
   }
 }
 
@@ -1123,7 +1295,7 @@ function simplePatrol(botId) {
     if (Math.abs(dx) > Math.abs(dy)) {
       move = dx > 0 ? { dx: 1, dy: 0, pos: 'left' } : { dx: -1, dy: 0, pos: 'right' };
     } else {
-      move = dy > 0 ? { dx: 0, dy: 1, pos: 'top' } : { dx: 0, dy: -1, pos: 'bottom' };
+      move = dy > 0 ? { dx: 0, dy: 1, pos: 'bottom' } : { dx: 0, dy: -1, pos: 'top' };
     }
 
     const newX = bot.x + move.dx;
@@ -1390,25 +1562,25 @@ function smartHunt(botId, target) {
 
   // Приоритет: выравнивание для выстрела
   if (absX > absY) {
-    if (dx > 0) moves.push({ dx: 1, dy: 0, pos: 'left', priority: 3 });    // Цель справа - идем вправо, смотрим влево
-    else moves.push({ dx: -1, dy: 0, pos: 'right', priority: 3 });         // Цель слева - идем влево, смотрим вправо
+    if (dx > 0) moves.push({ dx: 1, dy: 0, pos: 'left', priority: 3 });      // Цель справа - идем вправо, смотрим вправо
+    else moves.push({ dx: -1, dy: 0, pos: 'right', priority: 3 });         // Цель слева - идем влево, смотрим влево
 
-    if (dy > 0) moves.push({ dx: 0, dy: 1, pos: 'top', priority: 2 });      // Цель снизу - идем вниз, смотрим вверх
-    else if (dy < 0) moves.push({ dx: 0, dy: -1, pos: 'bottom', priority: 2 }); // Цель сверху - идем вверх, смотрим вниз
+    if (dy > 0) moves.push({ dx: 0, dy: 1, pos: 'bottom', priority: 2 });     // Цель снизу - идем вниз, смотрим вниз
+    else if (dy < 0) moves.push({ dx: 0, dy: -1, pos: 'top', priority: 2 });    // Цель сверху - идем вверх, смотрим вверх
   } else {
-    if (dy > 0) moves.push({ dx: 0, dy: 1, pos: 'top', priority: 3 });      // Цель снизу - идем вниз, смотрим вверх
-    else moves.push({ dx: 0, dy: -1, pos: 'bottom', priority: 3 });          // Цель сверху - идем вверх, смотрим вниз
+    if (dy > 0) moves.push({ dx: 0, dy: 1, pos: 'bottom', priority: 3 });        // Цель снизу - идем вниз, смотрим вниз
+    else moves.push({ dx: 0, dy: -1, pos: 'top', priority: 3 });            // Цель сверху - идем вверх, смотрим вверх
 
-    if (dx > 0) moves.push({ dx: 1, dy: 0, pos: 'left', priority: 2 });     // Цель справа - идем вправо, смотрим влево
-    else if (dx < 0) moves.push({ dx: -1, dy: 0, pos: 'right', priority: 2 }); // Цель слева - идем влево, смотрим вправо
+    if (dx > 0) moves.push({ dx: 1, dy: 0, pos: 'left', priority: 2 });       // Цель справа - идем вправо, смотрим вправо
+    else if (dx < 0) moves.push({ dx: -1, dy: 0, pos: 'right', priority: 2 });   // Цель слева - идем влево, смотрим влево
   }
 
   // Добавляем диагональные маневры для агрессивных ботов
   if (memory.aggressionLevel > 0.7) {
-    if (dx > 0 && dy > 0) moves.push({ dx: 1, dy: 1, pos: 'top', priority: 2 });      // Вправо-вниз, смотрим вверх
-    if (dx < 0 && dy > 0) moves.push({ dx: -1, dy: 1, pos: 'top', priority: 2 });    // Влево-вниз, смотрим вверх
-    if (dx > 0 && dy < 0) moves.push({ dx: 1, dy: -1, pos: 'bottom', priority: 2 }); // Вправо-вверх, смотрим вниз
-    if (dx < 0 && dy < 0) moves.push({ dx: -1, dy: -1, pos: 'bottom', priority: 2 }); // Влево-вверх, смотрим вниз
+    if (dx > 0 && dy > 0) moves.push({ dx: 1, dy: 1, pos: 'bottom', priority: 2 });     // Вправо-вниз, смотрим вниз
+    if (dx < 0 && dy > 0) moves.push({ dx: -1, dy: 1, pos: 'bottom', priority: 2 });   // Влево-вниз, смотрим вниз
+    if (dx > 0 && dy < 0) moves.push({ dx: 1, dy: -1, pos: 'top', priority: 2 });      // Вправо-вверх, смотрим вверх
+    if (dx < 0 && dy < 0) moves.push({ dx: -1, dy: -1, pos: 'top', priority: 2 });    // Влево-вверх, смотрим вверх
   }
 
   moves.sort((a, b) => b.priority - a.priority);
@@ -1460,7 +1632,7 @@ function smartPatrol(botId) {
     const moves = [];
 
     if (Math.abs(dx) > Math.abs(dy)) {
-      const move = dx > 0 ? { dx: -1, dy: 0, pos: 'right' } : { dx: 1, dy: 0, pos: 'left' };
+      const move = dx > 0 ? { dx: 1, dy: 0, pos: 'left' } : { dx: -1, dy: 0, pos: 'right' };
       moves.push(move);
     } else {
       const move = dy > 0 ? { dx: 0, dy: 1, pos: 'bottom' } : { dx: 0, dy: -1, pos: 'top' };
@@ -1533,6 +1705,26 @@ function tryMove(botId, dx, dy, position) {
     return false;
   }
 
+  // Проверка на других ботов, движущихся к той же позиции
+  const memory = botMemory[botId];
+  if (memory) {
+    // Очищаем старую целевую позицию
+    memory.targetPosition = null;
+
+    // Проверяем, не занята ли целевая позиция другим ботом
+    for (const otherId in botMemory) {
+      if (otherId === botId) continue;
+      const otherMemory = botMemory[otherId];
+      if (otherMemory && otherMemory.targetPosition) {
+        const targetDist = Math.abs(newX - otherMemory.targetPosition.x) +
+                          Math.abs(newY - otherMemory.targetPosition.y);
+        if (targetDist < 2) {
+          return false; // Позиция уже зарезервирована другим ботом
+        }
+      }
+    }
+  }
+
   const collidedPlayer = checkPlayerCollision(bot, newX, newY, position);
 
   const collidedWall = checkWallCollision(newX, newY, position);
@@ -1541,6 +1733,12 @@ function tryMove(botId, dx, dy, position) {
     bot.x = newX;
     bot.y = newY;
     bot.position = position;
+
+    // Сохраняем целевую позицию в памяти бота
+    if (memory) {
+      memory.targetPosition = { x: newX, y: newY, timestamp: Date.now() };
+    }
+
     return true;
   } else {
     // Столкновение - оба взрываются
