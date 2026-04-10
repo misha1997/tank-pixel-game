@@ -65,9 +65,11 @@ const positionPiece = {
 };
 
 // Направления пуль
+// position 'left' = танк смотрит ВПРАВО (орудие справа), стреляет вправо
+// position 'right' = танк смотрит ВЛЕВО (орудие слева), стреляет влево
 const bulletDirections = {
   top: { dir: 'up', dx: 0, dy: -1, offsetX: 1, offsetY: 0 },
-  bottom: { dir: 'down', dx: 0, dy: 1, offsetX: 1, offsetY: 3 },
+  bottom: { dir: 'down', dx: 0, dy: 1, offsetX: 1, offsetY: 2 },
   left: { dir: 'right', dx: 1, dy: 0, offsetX: 3, offsetY: 1 },
   right: { dir: 'left', dx: -1, dy: 0, offsetX: 0, offsetY: 1 },
 };
@@ -238,10 +240,10 @@ io.on('connection', function (socket) {
     socket.emit('player id', socket.id);
   });
 
-  socket.on('movePieceRight', () => movePlayer(socket.id, -1, 0, 'right'));
-  socket.on('movePieceLeft', () => movePlayer(socket.id, 1, 0, 'left'));
-  socket.on('movePieceTop', () => movePlayer(socket.id, 0, -1, 'top'));
-  socket.on('movePieceBottom', () => movePlayer(socket.id, 0, 1, 'bottom'));
+  socket.on('movePieceRight', () => movePlayer(socket.id, 1, 0, 'left'));   // едет вправо, смотрит вправо (position='left')
+  socket.on('movePieceLeft', () => movePlayer(socket.id, -1, 0, 'right'));  // едет влево, смотрит влево (position='right')
+  socket.on('movePieceTop', () => movePlayer(socket.id, 0, -1, 'top'));      // едет вверх, смотрит вверх
+  socket.on('movePieceBottom', () => movePlayer(socket.id, 0, 1, 'bottom')); // едет вниз, смотрит вниз
 
   socket.on('moveShot', function () {
     const player = players[socket.id];
@@ -289,10 +291,18 @@ function createBullet(playerId) {
   const bulletConfig = bulletDirections[player.position];
   if (!bulletConfig) return;
 
+  const bulletX = player.x + bulletConfig.offsetX;
+  const bulletY = player.y + bulletConfig.offsetY;
+
+  // Проверяем, что пуля создается в пределах поля
+  if (bulletX < 0 || bulletX >= size.col || bulletY < 0 || bulletY >= size.row) {
+    return; // Пуля за пределами поля - не создаем
+  }
+
   const bullet = getBulletFromPool();
   bullet.position = player.position;
-  bullet.x = player.x + bulletConfig.offsetX;
-  bullet.y = player.y + bulletConfig.offsetY;
+  bullet.x = bulletX;
+  bullet.y = bulletY;
   bullet.direction = bulletConfig.dir;
   bullet.dx = bulletConfig.dx;
   bullet.dy = bulletConfig.dy;
@@ -346,6 +356,9 @@ function checkBulletHit(bullet, shooterId, bulletId) {
 
     // Проверка неуязвимости
     if (target.invulnerableUntil && now < target.invulnerableUntil) continue;
+
+    // Проверка, что игрок не в процессе взрыва
+    if (target.exploding && now < target.explosionEndTime) continue;
 
     for (let y = 0; y < 3; y++) {
       for (let x = 0; x < 3; x++) {
@@ -439,10 +452,16 @@ function checkPlayerCollision(player, newX, newY, newPosition) {
 
   const now = Date.now();
 
+  // Проверяем, не взрывается ли сам игрок
+  if (player.exploding && now < player.explosionEndTime) return null;
+
   // Быстрая проверка расстояния для всех игроков
   for (const playerId in players) {
     const otherPlayer = players[playerId];
     if (otherPlayer === player || !otherPlayer.status) continue;
+
+    // Пропускаем игроков в процессе взрыва
+    if (otherPlayer.exploding && now < otherPlayer.explosionEndTime) continue;
 
     const playerInvulnerable = player.invulnerableUntil && now < player.invulnerableUntil;
     const otherInvulnerable = otherPlayer.invulnerableUntil && now < otherPlayer.invulnerableUntil;
@@ -801,15 +820,17 @@ function detectCollisionThreat(botId) {
   let closestThreat = null;
   let minDist = Infinity;
 
+  const now = Date.now();
+
   for (const playerId in players) {
     if (playerId === botId) continue;
 
     const other = players[playerId];
     if (!other || !other.status) continue;
 
-    // Пропускаем неуязвимых
-    const now = Date.now();
+    // Пропускаем неуязвимых и взрывающихся
     if (other.invulnerableUntil && now < other.invulnerableUntil) continue;
+    if (other.exploding && now < other.explosionEndTime) continue;
 
     const dist = Math.abs(bot.x - other.x) + Math.abs(bot.y - other.y);
 
@@ -939,10 +960,11 @@ function isSafeFromCollisions(botId, newX, newY, position) {
     const otherPlayer = players[playerId];
     if (otherPlayer === bot || !otherPlayer.status) continue;
 
-    // Пропускаем неуязвимых
+    // Пропускаем неуязвимых и взрывающихся
     const botInvulnerable = bot.invulnerableUntil && now < bot.invulnerableUntil;
     const otherInvulnerable = otherPlayer.invulnerableUntil && now < otherPlayer.invulnerableUntil;
-    if (botInvulnerable || otherInvulnerable) continue;
+    const otherExploding = otherPlayer.exploding && now < otherPlayer.explosionEndTime;
+    if (botInvulnerable || otherInvulnerable || otherExploding) continue;
 
     const dist = Math.abs(newX - otherPlayer.x) + Math.abs(newY - otherPlayer.y);
 
@@ -995,25 +1017,25 @@ function smartHuntWithCollisionAvoidance(botId, target) {
 
   // Приоритет: выравнивание для выстрела
   if (absX > absY) {
-    if (dx > 0) moves.push({ dx: -1, dy: 0, pos: 'right', priority: 3 });
-    else moves.push({ dx: 1, dy: 0, pos: 'left', priority: 3 });
+    if (dx > 0) moves.push({ dx: 1, dy: 0, pos: 'left', priority: 3 });    // Цель справа - идем вправо, смотрим влево
+    else moves.push({ dx: -1, dy: 0, pos: 'right', priority: 3 });         // Цель слева - идем влево, смотрим вправо
 
-    if (dy > 0) moves.push({ dx: 0, dy: 1, pos: 'bottom', priority: 2 });
-    else if (dy < 0) moves.push({ dx: 0, dy: -1, pos: 'top', priority: 2 });
+    if (dy > 0) moves.push({ dx: 0, dy: 1, pos: 'top', priority: 2 });      // Цель снизу - идем вниз, смотрим вверх
+    else if (dy < 0) moves.push({ dx: 0, dy: -1, pos: 'bottom', priority: 2 }); // Цель сверху - идем вверх, смотрим вниз
   } else {
-    if (dy > 0) moves.push({ dx: 0, dy: 1, pos: 'bottom', priority: 3 });
-    else moves.push({ dx: 0, dy: -1, pos: 'top', priority: 3 });
+    if (dy > 0) moves.push({ dx: 0, dy: 1, pos: 'top', priority: 3 });      // Цель снизу - идем вниз, смотрим вверх
+    else moves.push({ dx: 0, dy: -1, pos: 'bottom', priority: 3 });          // Цель сверху - идем вверх, смотрим вниз
 
-    if (dx > 0) moves.push({ dx: -1, dy: 0, pos: 'right', priority: 2 });
-    else if (dx < 0) moves.push({ dx: 1, dy: 0, pos: 'left', priority: 2 });
+    if (dx > 0) moves.push({ dx: 1, dy: 0, pos: 'left', priority: 2 });     // Цель справа - идем вправо, смотрим влево
+    else if (dx < 0) moves.push({ dx: -1, dy: 0, pos: 'right', priority: 2 }); // Цель слева - идем влево, смотрим вправо
   }
 
   // Добавляем диагональные маневры для агрессивных ботов
   if (memory.aggressionLevel > 0.7) {
-    if (dx > 0 && dy > 0) moves.push({ dx: -1, dy: 1, pos: 'bottom', priority: 2 });
-    if (dx < 0 && dy > 0) moves.push({ dx: 1, dy: 1, pos: 'bottom', priority: 2 });
-    if (dx > 0 && dy < 0) moves.push({ dx: -1, dy: -1, pos: 'top', priority: 2 });
-    if (dx < 0 && dy < 0) moves.push({ dx: 1, dy: -1, pos: 'top', priority: 2 });
+    if (dx > 0 && dy > 0) moves.push({ dx: 1, dy: 1, pos: 'top', priority: 2 });      // Вправо-вниз, смотрим вверх
+    if (dx < 0 && dy > 0) moves.push({ dx: -1, dy: 1, pos: 'top', priority: 2 });    // Влево-вниз, смотрим вверх
+    if (dx > 0 && dy < 0) moves.push({ dx: 1, dy: -1, pos: 'bottom', priority: 2 }); // Вправо-вверх, смотрим вниз
+    if (dx < 0 && dy < 0) moves.push({ dx: -1, dy: -1, pos: 'bottom', priority: 2 }); // Влево-вверх, смотрим вниз
   }
 
   moves.sort((a, b) => b.priority - a.priority);
@@ -1041,7 +1063,8 @@ function smartHuntWithCollisionAvoidance(botId, target) {
     const newX = bot.x + move.dx;
     const newY = bot.y + move.dy;
 
-    if (isSafeFromCollisions(botId, newX, newY, move.pos) &&
+    if (!checkWallCollision(newX, newY, move.pos) &&
+      isSafeFromCollisions(botId, newX, newY, move.pos) &&
       isSafePosition(botId, newX, newY, move.pos)) {
       return move;
     }
@@ -1073,12 +1096,12 @@ function simpleHunt(botId, target) {
   // Исправленная логика движения к цели
   if (Math.abs(dx) > Math.abs(dy)) {
     // Движемся по X-оси
-    if (dx > 0) return { dx: 1, dy: 0, pos: 'left' };  // Цель справа - идем вправо
-    else return { dx: -1, dy: 0, pos: 'right' };       // Цель слева - идем влево
+    if (dx > 0) return { dx: 1, dy: 0, pos: 'left' };   // Цель справа - идем вправо, смотрим влево
+    else return { dx: -1, dy: 0, pos: 'right' };       // Цель слева - идем влево, смотрим вправо
   } else {
     // Движемся по Y-оси
-    if (dy > 0) return { dx: 0, dy: 1, pos: 'bottom' }; // Цель снизу - идем вниз
-    else return { dx: 0, dy: -1, pos: 'top' };          // Цель сверху - идем вверх
+    if (dy > 0) return { dx: 0, dy: 1, pos: 'top' };    // Цель снизу - идем вниз, смотрим вверх
+    else return { dx: 0, dy: -1, pos: 'bottom' };       // Цель сверху - идем вверх, смотрим вниз
   }
 }
 
@@ -1100,7 +1123,7 @@ function simplePatrol(botId) {
     if (Math.abs(dx) > Math.abs(dy)) {
       move = dx > 0 ? { dx: 1, dy: 0, pos: 'left' } : { dx: -1, dy: 0, pos: 'right' };
     } else {
-      move = dy > 0 ? { dx: 0, dy: 1, pos: 'bottom' } : { dx: 0, dy: -1, pos: 'top' };
+      move = dy > 0 ? { dx: 0, dy: 1, pos: 'top' } : { dx: 0, dy: -1, pos: 'bottom' };
     }
 
     const newX = bot.x + move.dx;
@@ -1302,12 +1325,16 @@ function findBestTarget(botId) {
 
   let bestTarget = null;
   let bestScore = -Infinity;
+  const now = Date.now();
 
   for (const playerId in players) {
     if (playerId === botId || players[playerId].isBot) continue;
 
     const player = players[playerId];
     if (!player.status) continue;
+
+    // Пропускаем взрывающихся игроков
+    if (player.exploding && now < player.explosionEndTime) continue;
 
     const dist = Math.abs(bot.x - player.x) + Math.abs(bot.y - player.y);
     let score = -dist + player.rating * 5;
@@ -1363,25 +1390,25 @@ function smartHunt(botId, target) {
 
   // Приоритет: выравнивание для выстрела
   if (absX > absY) {
-    if (dx > 0) moves.push({ dx: -1, dy: 0, pos: 'right', priority: 3 });
-    else moves.push({ dx: 1, dy: 0, pos: 'left', priority: 3 });
+    if (dx > 0) moves.push({ dx: 1, dy: 0, pos: 'left', priority: 3 });    // Цель справа - идем вправо, смотрим влево
+    else moves.push({ dx: -1, dy: 0, pos: 'right', priority: 3 });         // Цель слева - идем влево, смотрим вправо
 
-    if (dy > 0) moves.push({ dx: 0, dy: 1, pos: 'bottom', priority: 2 });
-    else if (dy < 0) moves.push({ dx: 0, dy: -1, pos: 'top', priority: 2 });
+    if (dy > 0) moves.push({ dx: 0, dy: 1, pos: 'top', priority: 2 });      // Цель снизу - идем вниз, смотрим вверх
+    else if (dy < 0) moves.push({ dx: 0, dy: -1, pos: 'bottom', priority: 2 }); // Цель сверху - идем вверх, смотрим вниз
   } else {
-    if (dy > 0) moves.push({ dx: 0, dy: 1, pos: 'bottom', priority: 3 });
-    else moves.push({ dx: 0, dy: -1, pos: 'top', priority: 3 });
+    if (dy > 0) moves.push({ dx: 0, dy: 1, pos: 'top', priority: 3 });      // Цель снизу - идем вниз, смотрим вверх
+    else moves.push({ dx: 0, dy: -1, pos: 'bottom', priority: 3 });          // Цель сверху - идем вверх, смотрим вниз
 
-    if (dx > 0) moves.push({ dx: -1, dy: 0, pos: 'right', priority: 2 });
-    else if (dx < 0) moves.push({ dx: 1, dy: 0, pos: 'left', priority: 2 });
+    if (dx > 0) moves.push({ dx: 1, dy: 0, pos: 'left', priority: 2 });     // Цель справа - идем вправо, смотрим влево
+    else if (dx < 0) moves.push({ dx: -1, dy: 0, pos: 'right', priority: 2 }); // Цель слева - идем влево, смотрим вправо
   }
 
   // Добавляем диагональные маневры для агрессивных ботов
   if (memory.aggressionLevel > 0.7) {
-    if (dx > 0 && dy > 0) moves.push({ dx: -1, dy: 1, pos: 'bottom', priority: 2 });
-    if (dx < 0 && dy > 0) moves.push({ dx: 1, dy: 1, pos: 'bottom', priority: 2 });
-    if (dx > 0 && dy < 0) moves.push({ dx: -1, dy: -1, pos: 'top', priority: 2 });
-    if (dx < 0 && dy < 0) moves.push({ dx: 1, dy: -1, pos: 'top', priority: 2 });
+    if (dx > 0 && dy > 0) moves.push({ dx: 1, dy: 1, pos: 'top', priority: 2 });      // Вправо-вниз, смотрим вверх
+    if (dx < 0 && dy > 0) moves.push({ dx: -1, dy: 1, pos: 'top', priority: 2 });    // Влево-вниз, смотрим вверх
+    if (dx > 0 && dy < 0) moves.push({ dx: 1, dy: -1, pos: 'bottom', priority: 2 }); // Вправо-вверх, смотрим вниз
+    if (dx < 0 && dy < 0) moves.push({ dx: -1, dy: -1, pos: 'bottom', priority: 2 }); // Влево-вверх, смотрим вниз
   }
 
   moves.sort((a, b) => b.priority - a.priority);

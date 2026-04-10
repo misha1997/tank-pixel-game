@@ -62,7 +62,7 @@ document.addEventListener('keydown', function (event) {
         case 37: // Left arrow
         case 65:  // A
             if (canSendInput) {
-                queueInput('movePieceRight');
+                queueInput('movePieceLeft');
                 lastInputTime = now;
             }
             break;
@@ -76,7 +76,7 @@ document.addEventListener('keydown', function (event) {
         case 39: // Right arrow
         case 68:  // D
             if (canSendInput) {
-                queueInput('movePieceLeft');
+                queueInput('movePieceRight');
                 lastInputTime = now;
             }
             break;

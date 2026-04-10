@@ -75,7 +75,8 @@
       // Обработка старта игры
       function startGame() {
         const name = playerNameInput.value.trim();
-        const selectedColor = document.querySelector('.color-option.selected').dataset.color;
+        const selectedOption = document.querySelector('.color-option.selected');
+        const selectedColor = selectedOption ? selectedOption.dataset.color : colorOptions[0].dataset.color;
 
         if (!name) {
           playerNameInput.focus();
