@@ -103,11 +103,21 @@ export default class View {
         // Рисуем стены
         this.renderWalls(data.walls);
 
+        // Рисуем кирпичи (в кооп-режиме)
+        if (data.bricks) {
+            this.renderBricks(data.bricks);
+        }
+
+        // Рисуем базу (в кооп-режиме)
+        if (data.base) {
+            this.renderBase(data.base);
+        }
+
         // Рисуем игровое поле с учетом неуязвимости
         this.renderPlayField(data.playField, data.players);
 
         // Рисуем UI
-        this.renderPlayers(data.players, myPlayerId);
+        this.renderPlayers(data.players, myPlayerId, data);
     }
 
 
@@ -147,6 +157,77 @@ export default class View {
             yPos + this.innerCellOffset,
             this.innerCellSize,
             this.innerCellSize
+        );
+    }
+
+    renderBricks(bricks) {
+        if (!bricks) return;
+
+        for (const brick of bricks) {
+            if (brick.health > 0) {
+                this.renderBrickCell(brick.x, brick.y);
+            }
+        }
+    }
+
+    renderBrickCell(x, y) {
+        const xPos = x * this.cellSize;
+        const yPos = y * this.cellSize;
+
+        // Кирпичный цвет (красно-коричневый)
+        this.context.fillStyle = '#cc6633';
+        this.context.fillRect(xPos, yPos, this.cellSize - 2, this.cellSize - 2);
+
+        // Текстура кирпича (более темные линии)
+        this.context.fillStyle = '#aa4422';
+        this.context.fillRect(
+            xPos + 2,
+            yPos + 2,
+            this.cellSize - 6,
+            this.cellSize - 6
+        );
+
+        // "Раствор" между кирпичами
+        this.context.fillStyle = '#cc6633';
+        this.context.fillRect(
+            xPos + this.cellSize / 2 - 1,
+            yPos + 4,
+            2,
+            this.cellSize - 10
+        );
+        this.context.fillRect(
+            xPos + 4,
+            yPos + this.cellSize / 2 - 1,
+            this.cellSize - 10,
+            2
+        );
+    }
+
+    renderBase(base) {
+        if (!base || base.health <= 0) return;
+
+        const baseX = base.x * this.cellSize;
+        const baseY = base.y * this.cellSize;
+        const baseSize = this.cellSize * 3;
+
+        // Фон базы (белый с серой рамкой)
+        this.context.fillStyle = '#666666';
+        this.context.fillRect(baseX, baseY, baseSize - 2, baseSize - 2);
+
+        this.context.fillStyle = '#ffffff';
+        this.context.fillRect(
+            baseX + 4,
+            baseY + 4,
+            baseSize - 10,
+            baseSize - 10
+        );
+
+        // Символ орла (E)
+        this.context.fillStyle = '#c20000';
+        this.context.font = `${this.cellSize}px DS-Digital-Italic`;
+        this.context.fillText('E',
+            baseX + this.cellSize / 2,
+            baseY + this.cellSize * 2
         );
     }
 
@@ -219,7 +300,7 @@ export default class View {
         );
     }
 
-    renderPlayers(players, myPlayerId) {
+    renderPlayers(players, myPlayerId, data) {
         // Рассчитываем позицию UI панели (справа)
         const uiWidth = 300;
         const uiX = this.width - uiWidth;
@@ -236,6 +317,55 @@ export default class View {
         this.context.font = '22px DS-Digital-Italic';
         this.context.fillStyle = this.colors.empty;
 
+        // Режим кооператива - показываем инфо о волне
+        if (data && data.gameMode === 'coop') {
+            this.context.fillStyle = '#c20000';
+            this.context.fillText('CO-OP DEFENSE', uiX + 10, 25);
+
+            this.context.fillStyle = this.colors.filled;
+            this.context.font = '18px DS-Digital-Italic';
+            this.context.fillText(`WAVE: ${data.wave || 1}`, uiX + 10, 50);
+            this.context.fillText(`ENEMIES: ${data.enemiesRemaining || 0}`, uiX + 10, 70);
+            this.context.fillText(`KILLED: ${data.enemiesKilled || 0}`, uiX + 10, 90);
+
+            if (data.base) {
+                const baseHealth = data.base.health > 0 ? 'OK' : 'DESTROYED';
+                const baseColor = data.base.health > 0 ? '#00AA00' : '#ff0000';
+                this.context.fillStyle = baseColor;
+                this.context.fillText(`BASE: ${baseHealth}`, uiX + 10, 115);
+            }
+
+            // Состояние игры
+            if (data.gameState === 'defeat') {
+                this.context.fillStyle = '#ff0000';
+                this.context.font = '24px DS-Digital-Italic';
+                this.context.fillText('GAME OVER', uiX + 10, 150);
+            } else if (data.gameState === 'victory') {
+                this.context.fillStyle = '#00AA00';
+                this.context.font = '24px DS-Digital-Italic';
+                this.context.fillText('VICTORY!', uiX + 10, 150);
+            }
+
+            // Список игроков (кооп)
+            this.context.fillStyle = this.colors.filled;
+            this.context.font = '18px DS-Digital-Italic';
+            let playerY = 180;
+            for (const playerId in players) {
+                const player = players[playerId];
+                if (player.isBot) continue;
+
+                const isMe = playerId === myPlayerId;
+                const prefix = isMe ? '► ' : '';
+                const lives = '♥'.repeat(player.lives || 1);
+                this.context.fillText(`${prefix}${player.name}: ${lives}`, uiX + 10, playerY);
+                playerY += 22;
+            }
+
+            return;
+        }
+
+        // PvP режим - обычный UI
+        this.context.fillStyle = this.colors.filled;
         let countPlayers = 0;
         let playerPosition = 30;
         const playersArray = Object.entries(players);

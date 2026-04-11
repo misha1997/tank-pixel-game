@@ -22,14 +22,15 @@ const startGameInterval = setInterval(() => {
 function initGame() {
     const name = window.playerName;
     const color = window.playerColor || '#00AA00';
+    const mode = window.gameMode || 'pvp';
 
     // Создаем View с полноэкранным canvas
     view = new View(root);
 
     // Отправляем данные игрока на сервер
-    socket.emit('new player', { name, color });
+    socket.emit('new player', { name, color, mode });
 
-    console.log('Game started with name:', name, 'and color:', color);
+    console.log('Game started with name:', name, ', color:', color, ', mode:', mode);
 
     // playSound('/static/sounds/start.mp3');
 }
@@ -205,8 +206,39 @@ setInterval(() => {
     }
 }, 50);
 
+// Обработка состояния игры
 socket.on('state', function (data) {
     lastState = data;
+});
+
+// Обработка режима игры
+socket.on('game mode', function (data) {
+    console.log('Game mode:', data.mode, 'Wave:', data.wave);
+});
+
+// Обработка разрушения кирпича
+socket.on('brick destroyed', function (data) {
+    console.log('Brick destroyed at:', data.x, data.y);
+});
+
+// Обработка попадания по базе
+socket.on('base hit', function (data) {
+    console.log('Base hit! Health:', data.health);
+    if (data.health <= 0) {
+        alert('BASE DESTROYED! Game Over!');
+    }
+});
+
+// Обработка завершения волны
+socket.on('wave complete', function (data) {
+    console.log('Wave', data.wave, 'completed!');
+    alert(`Wave ${data.wave} completed! Get ready for the next wave!`);
+});
+
+// Обработка окончания игры
+socket.on('game over', function (data) {
+    console.log('Game Over:', data);
+    alert(`GAME OVER!\nWave: ${data.wave}\nEnemies killed: ${data.kills}`);
 });
 
 // Обработка переподключения

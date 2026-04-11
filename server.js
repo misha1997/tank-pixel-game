@@ -26,6 +26,21 @@ var bulletIntervals = {};
 const botIntervals = {};
 const botMemory = {};
 
+// Режим игры
+let gameMode = 'pvp'; // 'pvp' или 'coop'
+let gameState = 'waiting'; // 'waiting', 'playing', 'victory', 'defeat'
+
+// Кооперативный режим
+const bricks = []; // Разрушаемые кирпичи
+const base = { x: 24, y: 26, type: 'base', health: 1 }; // База (орел)
+let coopWave = 1;
+let enemiesToSpawn = 0;
+let enemiesKilled = 0;
+let totalEnemiesInWave = 0;
+let waveSpawnInterval = null;
+let coopBotCount = 0;
+const MAX_COOP_BOTS = 4;
+
 // Оптимизация: пул пуль и кеш
 const bulletPool = [];
 const activeBullets = new Map();
@@ -118,6 +133,1016 @@ function generateWalls() {
 }
 
 generateWalls();
+
+// Генерация карты для PvP режима
+function generatePvPMap() {
+  walls.length = 0;
+  bricks.length = 0;
+
+  // Стена 1: Вертикальная стена слева
+  for (let y = 8; y < 22; y++) {
+    walls.push({ x: 15, y: y, type: 'wall' });
+  }
+
+  // Стена 2: Горизонтальная стена сверху
+  for (let x = 20; x < 35; x++) {
+    walls.push({ x: x, y: 10, type: 'wall' });
+  }
+
+  // Стена 3: Вертикальная стена справа
+  for (let y = 5; y < 18; y++) {
+    walls.push({ x: 35, y: y, type: 'wall' });
+  }
+
+  // Стена 4: Короткая горизонтальная стена снизу
+  for (let x = 8; x < 15; x++) {
+    walls.push({ x: x, y: 20, type: 'wall' });
+  }
+
+  // Стена 5: L-образная стена
+  for (let x = 40; x < 45; x++) {
+    walls.push({ x: x, y: 20, type: 'wall' });
+  }
+  for (let y = 20; y < 25; y++) {
+    walls.push({ x: 40, y: y, type: 'wall' });
+  }
+}
+
+// Генерация карты для кооперативного режима
+function generateCoopMap() {
+  walls.length = 0;
+  bricks.length = 0;
+
+  // Бетонные стены (неразрушимые) - границы и некоторые препятствия
+  // Верхняя стена
+  for (let x = 5; x < 45; x++) {
+    if (x < 20 || x > 29) walls.push({ x: x, y: 3, type: 'wall' });
+  }
+
+  // Боковые стены
+  for (let y = 3; y < 15; y++) {
+    walls.push({ x: 5, y: y, type: 'wall' });
+    walls.push({ x: 44, y: y, type: 'wall' });
+  }
+
+  // Центральное препятствие (бетон)
+  for (let x = 20; x <= 29; x++) {
+    walls.push({ x: x, y: 10, type: 'wall' });
+  }
+  for (let y = 8; y <= 12; y++) {
+    walls.push({ x: 22, y: y, type: 'wall' });
+    walls.push({ x: 27, y: y, type: 'wall' });
+  }
+
+  // Боковые препятствия (бетон)
+  for (let y = 6; y < 10; y++) {
+    walls.push({ x: 10, y: y, type: 'wall' });
+    walls.push({ x: 39, y: y, type: 'wall' });
+  }
+
+  // Кирпичные стены (разрушаемые) - защита базы
+  // Стены вокруг базы
+  const baseX = base.x;
+  const baseY = base.y;
+
+  // Верхняя линия защиты
+  for (let x = baseX - 2; x <= baseX + 4; x++) {
+    bricks.push({ x: x, y: baseY - 2, type: 'brick', health: 1 });
+  }
+
+  // Боковые стены защиты
+  for (let y = baseY - 2; y <= baseY + 2; y++) {
+    bricks.push({ x: baseX - 2, y: y, type: 'brick', health: 1 });
+    bricks.push({ x: baseX + 4, y: y, type: 'brick', health: 1 });
+  }
+
+  // Дополнительные кирпичные препятствия на карте
+  // Левый фланг
+  for (let y = 15; y < 20; y++) {
+    bricks.push({ x: 8, y: y, type: 'brick', health: 1 });
+    bricks.push({ x: 12, y: y, type: 'brick', health: 1 });
+  }
+
+  // Правый фланг
+  for (let y = 15; y < 20; y++) {
+    bricks.push({ x: 37, y: y, type: 'brick', health: 1 });
+    bricks.push({ x: 41, y: y, type: 'brick', health: 1 });
+  }
+
+  // Центральные препятствия
+  for (let x = 18; x <= 31; x += 2) {
+    bricks.push({ x: x, y: 15, type: 'brick', health: 1 });
+  }
+
+  // Обновляем состояние игры
+  base.health = 1;
+  gameState = 'playing';
+  coopWave = 1;
+  enemiesKilled = 0;
+  coopBotCount = 0;
+}
+
+// Запуск волны врагов в кооп-режиме
+function startCoopWave() {
+  enemiesToSpawn = 5 + coopWave * 2; // Увеличиваем количество врагов с каждой волной
+  totalEnemiesInWave = enemiesToSpawn;
+
+  // Интервал спавна врагов
+  if (waveSpawnInterval) {
+    clearInterval(waveSpawnInterval);
+  }
+
+  waveSpawnInterval = setInterval(() => {
+    if (gameState !== 'playing' || enemiesToSpawn <= 0 || coopBotCount >= MAX_COOP_BOTS) {
+      if (enemiesToSpawn <= 0 && coopBotCount === 0) {
+        // Волна завершена
+        coopWave++;
+        setTimeout(() => startCoopWave(), 5000); // 5 секунд до следующей волны
+      }
+      return;
+    }
+
+    spawnCoopEnemy();
+    enemiesToSpawn--;
+  }, 3000); // Спавн каждые 3 секунды
+}
+
+// Спавн врага в кооп-режиме
+function spawnCoopEnemy() {
+  // Точки спавна вне стен (в кооп-карте)
+  const spawnPoints = [
+    { x: 10, y: 4 },
+    { x: 39, y: 4 },
+    { x: 12, y: 13 },
+    { x: 37, y: 13 }
+  ];
+
+  // Ищем свободную точку спавна
+  let spawn = null;
+  for (const point of spawnPoints) {
+    // Проверяем, что точка не в стене
+    let inWall = false;
+    for (const wall of walls) {
+      if (Math.abs(wall.x - point.x) <= 2 && Math.abs(wall.y - point.y) <= 2) {
+        inWall = true;
+        break;
+      }
+    }
+
+    // Проверяем, что точка не занята другим игроком
+    let occupied = false;
+    for (const playerId in players) {
+      const player = players[playerId];
+      if (player.status && Math.abs(player.x - point.x) < 3 && Math.abs(player.y - point.y) < 3) {
+        occupied = true;
+        break;
+      }
+    }
+
+    if (!inWall && !occupied) {
+      spawn = point;
+      break;
+    }
+  }
+
+  // Если все точки заняты - ищем случайную свободную
+  if (!spawn) {
+    let attempts = 0;
+    while (attempts < 20) {
+      const x = 5 + randomInteger(40);
+      const y = 3 + randomInteger(12);
+
+      let valid = true;
+      // Проверяем стены
+      for (const wall of walls) {
+        if (Math.abs(wall.x - x) <= 2 && Math.abs(wall.y - y) <= 2) {
+          valid = false;
+          break;
+        }
+      }
+
+      // Проверяем других игроков
+      for (const playerId in players) {
+        const player = players[playerId];
+        if (player.status && Math.abs(player.x - x) < 3 && Math.abs(player.y - y) < 3) {
+          valid = false;
+          break;
+        }
+      }
+
+      if (valid) {
+        spawn = { x, y };
+        break;
+      }
+      attempts++;
+    }
+  }
+
+  // Если не нашли свободную точку - пропускаем спавн
+  if (!spawn) {
+    console.log('No valid spawn point found for coop enemy');
+    return;
+  }
+
+  const botId = 'coop_bot_' + uuidv4();
+
+  players[botId] = {
+    name: 'Enemy Tank',
+    color: '#c20000', // Красный цвет врагов
+    status: true,
+    isBot: true,
+    isCoopEnemy: true, // Отмечаем как врага кооп-режима
+    x: spawn.x,
+    y: spawn.y,
+    position: 'bottom', // Смотрят вниз (на базу)
+    bullets: {},
+    rating: 0,
+    lastShot: 0,
+    invulnerableUntil: Date.now() + 1000, // 1 секунда неуязвимости
+    exploding: false,
+    explosionEndTime: 0,
+    respawnShootingCooldown: Date.now() + 1500,
+    health: 1 // Здоровье врага
+  };
+
+  coopBotCount++;
+
+  // AI для кооп-врагов - движение к базе
+  botMemory[botId] = {
+    lastPositions: [],
+    stuckCounter: 0,
+    lastDodge: 0,
+    lastMemoryUpdate: 0,
+    aggressionLevel: 0.8,
+    dangerZones: [],
+    lastCollisionAvoidance: 0,
+    target: 'base' // Цель - база
+  };
+
+  // Запускаем AI для врага
+  botIntervals[botId] = setInterval(() => {
+    if (!players[botId]) {
+      clearInterval(botIntervals[botId]);
+      delete botIntervals[botId];
+      delete botMemory[botId];
+      coopBotCount--;
+      return;
+    }
+
+    if (players[botId].status) {
+      coopEnemyAI(botId);
+    } else {
+      // Враг уничтожен
+      clearInterval(botIntervals[botId]);
+      delete botIntervals[botId];
+      delete botMemory[botId];
+      delete players[botId];
+      coopBotCount--;
+      enemiesKilled++;
+
+      // Проверяем победу
+      checkCoopVictory();
+    }
+  }, BOT_UPDATE_INTERVAL);
+}
+
+// AI для врагов в кооп-режиме (супер умный)
+function coopEnemyAI(botId) {
+  const bot = players[botId];
+  const memory = botMemory[botId];
+  if (!bot || !bot.status || !memory) return;
+
+  const now = Date.now();
+
+  // Обновляем память позиций
+  if (!memory.positions) memory.positions = [];
+  if (now - (memory.lastPosUpdate || 0) > 500) {
+    memory.positions.push({ x: bot.x, y: bot.y, time: now });
+    if (memory.positions.length > 5) memory.positions.shift();
+    memory.lastPosUpdate = now;
+  }
+
+  // Проверяем застревание
+  if (isStuck(memory)) {
+    memory.stuckCounter = (memory.stuckCounter || 0) + 1;
+    if (memory.stuckCounter > 3) {
+      // Экстренный маневр - двигаемся в случайном направлении
+      const emergencyMove = getRandomValidMove(bot);
+      if (emergencyMove) {
+        tryMove(botId, emergencyMove.dx, emergencyMove.dy, emergencyMove.pos);
+        memory.stuckCounter = 0;
+        return;
+      }
+    }
+  } else {
+    memory.stuckCounter = 0;
+  }
+
+  // 1. ПРИОРИТЕТ: Уклонение от пуль игроков
+  const dodgeMove = shouldDodgeBullet(bot);
+  if (dodgeMove && now - (memory.lastDodge || 0) > 300) {
+    tryMove(botId, dodgeMove.dx, dodgeMove.dy, dodgeMove.pos);
+    memory.lastDodge = now;
+    return;
+  }
+
+  // 2. ПРИОРИТЕТ: Атака игроков если они близко и уязвимы
+  const playerThreat = findBestPlayerTarget(bot);
+  if (playerThreat && playerThreat.distance <= 6) {
+    // Если можем стрелять - стреляем
+    if (canShootTarget(bot, playerThreat.player) &&
+        now - bot.lastShot > BULLET_COOLDOWN &&
+        now > bot.respawnShootingCooldown) {
+      bot.position = playerThreat.position;
+      bot.lastShot = now;
+      createBullet(botId);
+      memory.targetPlayer = playerThreat.playerId;
+      return;
+    }
+
+    // Если игрок слишком близко и опасен - отступаем
+    if (playerThreat.distance < 4) {
+      const retreat = calculateRetreat(bot, playerThreat.player);
+      if (retreat) {
+        tryMove(botId, retreat.dx, retreat.dy, retreat.pos);
+        return;
+      }
+    }
+  }
+
+  // 3. ПРИОРИТЕТ: Атака базы
+  const attackPos = findBestAttackPosition(bot, botId);
+
+  if (attackPos.canShoot) {
+    bot.position = attackPos.position;
+
+    // Стреляем по базе
+    if (now - bot.lastShot > BULLET_COOLDOWN && now > bot.respawnShootingCooldown) {
+      bot.lastShot = now;
+      createBullet(botId);
+    }
+    return;
+  }
+
+  // 4. Движение к позиции атаки
+  if (attackPos.targetX !== undefined && attackPos.targetY !== undefined) {
+    const move = calculateSmartPath(bot, attackPos.targetX, attackPos.targetY);
+
+    if (move) {
+      // Проверяем, что не толкаемся с другими ботами
+      if (!isCollidingWithOtherBots(bot, botId, move)) {
+        tryMove(botId, move.dx, move.dy, move.pos);
+        memory.lastMove = move;
+        memory.lastTarget = { x: attackPos.targetX, y: attackPos.targetY };
+        return;
+      }
+    }
+  }
+
+  // 5. Разрушение препятствий
+  if (now - bot.lastShot > BULLET_COOLDOWN && now > bot.respawnShootingCooldown) {
+    const obstacle = findBestObstacleToShoot(bot);
+    if (obstacle) {
+      bot.position = obstacle.position;
+      bot.lastShot = now;
+      createBullet(botId);
+      return;
+    }
+  }
+
+  // 6. Патрулирование если нечего делать
+  const patrolMove = getPatrolMove(bot, memory);
+  if (patrolMove) {
+    tryMove(botId, patrolMove.dx, patrolMove.dy, patrolMove.pos);
+  }
+}
+
+// Поиск игрока в прямой видимости
+function findPlayerInSight(bot) {
+  const directions = ['top', 'bottom', 'left', 'right'];
+
+  for (const dir of directions) {
+    const bulletConfig = bulletDirections[dir];
+    if (!bulletConfig) continue;
+
+    let checkX = bot.x + bulletConfig.offsetX;
+    let checkY = bot.y + bulletConfig.offsetY;
+
+    // Проверяем 10 клеток
+    for (let i = 0; i < 10; i++) {
+      checkX += bulletConfig.dx;
+      checkY += bulletConfig.dy;
+
+      // Ищем игрока
+      for (const playerId in players) {
+        const player = players[playerId];
+        if (player && player.status && !player.isBot &&
+            checkX >= player.x && checkX < player.x + 3 &&
+            checkY >= player.y && checkY < player.y + 3) {
+          return { position: dir };
+        }
+      }
+
+      // Проверяем стены
+      let hitWall = false;
+      for (const wall of walls) {
+        if (wall.x === checkX && wall.y === checkY) {
+          hitWall = true;
+          break;
+        }
+      }
+      if (hitWall) break;
+    }
+  }
+
+  return null;
+}
+
+// Проверка застревания
+function isStuck(memory) {
+  if (!memory.positions || memory.positions.length < 3) return false;
+  const recent = memory.positions.slice(-3);
+  const unique = new Set(recent.map(p => `${p.x},${p.y}`));
+  return unique.size <= 1;
+}
+
+// Получить случайный валидный ход
+function getRandomValidMove(bot) {
+  const moves = [
+    { dx: 1, dy: 0, pos: 'left' },
+    { dx: -1, dy: 0, pos: 'right' },
+    { dx: 0, dy: 1, pos: 'bottom' },
+    { dx: 0, dy: -1, pos: 'top' }
+  ];
+
+  // Перемешиваем
+  for (let i = moves.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [moves[i], moves[j]] = [moves[j], moves[i]];
+  }
+
+  for (const move of moves) {
+    if (isValidMove(bot, move)) return move;
+  }
+  return null;
+}
+
+// Проверка нужно ли уклоняться от пули
+function shouldDodgeBullet(bot) {
+  // Ищем пули игроков
+  for (const playerId in players) {
+    const player = players[playerId];
+    if (player.isBot || !player.bullets) continue;
+
+    for (const bulletId in player.bullets) {
+      const bullet = player.bullets[bulletId];
+      if (!bullet) continue;
+
+      const dist = Math.abs(bullet.x - bot.x) + Math.abs(bullet.y - bot.y);
+      if (dist > 5) continue;
+
+      // Проверяем движется ли пуля в нашу сторону
+      const bulletConfig = bulletDirections[bullet.position];
+      if (!bulletConfig) continue;
+
+      // Предсказываем попадание
+      let nextX = bullet.x;
+      let nextY = bullet.y;
+      for (let i = 0; i < 3; i++) {
+        nextX += bulletConfig.dx;
+        nextY += bulletConfig.dy;
+
+        // Попадание в бота?
+        if (nextX >= bot.x && nextX < bot.x + 3 &&
+            nextY >= bot.y && nextY < bot.y + 3) {
+          // Уклоняемся перпендикулярно
+          if (bulletConfig.dx !== 0) {
+            // Пуля движется горизонтально - уклоняемся вертикально
+            const up = { dx: 0, dy: -1, pos: 'bottom' };
+            const down = { dx: 0, dy: 1, pos: 'top' };
+            if (isValidMove(bot, up)) return up;
+            if (isValidMove(bot, down)) return down;
+          } else {
+            // Пуля движется вертикально - уклоняемся горизонтально
+            const left = { dx: -1, dy: 0, pos: 'right' };
+            const right = { dx: 1, dy: 0, pos: 'left' };
+            if (isValidMove(bot, left)) return left;
+            if (isValidMove(bot, right)) return right;
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// Находим лучшую цель среди игроков
+function findBestPlayerTarget(bot) {
+  let bestTarget = null;
+  let bestScore = -Infinity;
+
+  for (const playerId in players) {
+    const player = players[playerId];
+    if (player.isBot || !player.status) continue;
+
+    const dist = Math.abs(bot.x - player.x) + Math.abs(bot.y - player.y);
+    const canShoot = canShootTarget(bot, player);
+
+    // Оцениваем цель
+    let score = 0;
+    if (canShoot) score += 100;
+    score -= dist * 5; // Ближе = лучше
+    if (dist < 4) score += 50; // Опасно близко
+
+    // Проверяем есть ли линия огня
+    const pos = getDirectionToTarget(bot, player);
+    if (pos) {
+      const bulletConfig = bulletDirections[pos];
+      if (bulletConfig) {
+        // Проверяем видимость
+        let checkX = bot.x + bulletConfig.offsetX;
+        let checkY = bot.y + bulletConfig.offsetY;
+        let hasSight = true;
+
+        for (let i = 0; i < dist; i++) {
+          checkX += bulletConfig.dx;
+          checkY += bulletConfig.dy;
+
+          // Стена блокирует
+          for (const wall of walls) {
+            if (wall.x === checkX && wall.y === checkY) {
+              hasSight = false;
+              break;
+            }
+          }
+          if (!hasSight) break;
+        }
+
+        if (hasSight) score += 30;
+      }
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestTarget = {
+        player: player,
+        playerId: playerId,
+        distance: dist,
+        position: pos
+      };
+    }
+  }
+
+  return bestTarget;
+}
+
+// Можем ли стрелять по цели
+function canShootTarget(bot, target) {
+  const pos = getDirectionToTarget(bot, target);
+  if (!pos) return false;
+
+  const bulletConfig = bulletDirections[pos];
+  if (!bulletConfig) return false;
+
+  // Проверяем что мы повернуты к цели
+  if (bot.position !== pos) return false;
+
+  return true;
+}
+
+// Получить направление к цели
+function getDirectionToTarget(bot, target) {
+  const dx = (target.x + 1) - (bot.x + 1);
+  const dy = (target.y + 1) - (bot.y + 1);
+
+  // Определяем направление
+  if (Math.abs(dx) > Math.abs(dy)) {
+    return dx > 0 ? 'left' : 'right';
+  } else {
+    return dy > 0 ? 'bottom' : 'top';
+  }
+}
+
+// Рассчитать отступление от игрока
+function calculateRetreat(bot, player) {
+  const dx = bot.x - player.x;
+  const dy = bot.y - player.y;
+
+  let move = null;
+  if (Math.abs(dx) > Math.abs(dy)) {
+    move = dx > 0 ? { dx: 1, dy: 0, pos: 'left' } : { dx: -1, dy: 0, pos: 'right' };
+  } else {
+    move = dy > 0 ? { dx: 0, dy: 1, pos: 'bottom' } : { dx: 0, dy: -1, pos: 'top' };
+  }
+
+  if (isValidMove(bot, move)) return move;
+
+  // Если не получилось - ищем любой валидный
+  return getRandomValidMove(bot);
+}
+
+// Проверка столкновения с другими ботами
+function isCollidingWithOtherBots(bot, botId, move) {
+  const newX = bot.x + move.dx;
+  const newY = bot.y + move.dy;
+
+  for (const otherId in players) {
+    if (otherId === botId) continue;
+    const other = players[otherId];
+    if (!other.isBot || !other.status) continue;
+
+    const dist = Math.abs(newX - other.x) + Math.abs(newY - other.y);
+    if (dist < 2) return true;
+  }
+
+  return false;
+}
+
+// Умный расчет пути
+function calculateSmartPath(bot, targetX, targetY) {
+  const dx = targetX - bot.x;
+  const dy = targetY - bot.y;
+
+  // Пробуем основное направление
+  let move = null;
+  if (Math.abs(dx) > Math.abs(dy)) {
+    move = dx > 0 ? { dx: 1, dy: 0, pos: 'left' } : { dx: -1, dy: 0, pos: 'right' };
+  } else {
+    move = dy > 0 ? { dx: 0, dy: 1, pos: 'bottom' } : { dx: 0, dy: -1, pos: 'top' };
+  }
+
+  if (isValidMove(bot, move)) return move;
+
+  // Пробуем альтернативные направления
+  const alternatives = [
+    { dx: 1, dy: 0, pos: 'left' },
+    { dx: -1, dy: 0, pos: 'right' },
+    { dx: 0, dy: 1, pos: 'bottom' },
+    { dx: 0, dy: -1, pos: 'top' }
+  ];
+
+  // Сортируем по близости к цели
+  alternatives.sort((a, b) => {
+    const distA = Math.abs(bot.x + a.dx - targetX) + Math.abs(bot.y + a.dy - targetY);
+    const distB = Math.abs(bot.x + b.dx - targetX) + Math.abs(bot.y + b.dy - targetY);
+    return distA - distB;
+  });
+
+  for (const alt of alternatives) {
+    if (isValidMove(bot, alt)) return alt;
+  }
+
+  return null;
+}
+
+// Найти лучшее препятствие для разрушения
+function findBestObstacleToShoot(bot) {
+  const bulletConfig = bulletDirections[bot.position];
+  if (!bulletConfig) return null;
+
+  // Проверяем 5 клеток впереди
+  let checkX = bot.x + bulletConfig.offsetX;
+  let checkY = bot.y + bulletConfig.offsetY;
+
+  for (let i = 0; i < 5; i++) {
+    checkX += bulletConfig.dx;
+    checkY += bulletConfig.dy;
+
+    // Нашли кирпич
+    for (const brick of bricks) {
+      if (brick.x === checkX && brick.y === checkY && brick.health > 0) {
+        return { position: bot.position, type: 'brick' };
+      }
+    }
+  }
+
+  return null;
+}
+
+// Движение патрулирования
+function getPatrolMove(bot, memory) {
+  // Патрулируем вокруг центра верхней части карты
+  const centerX = 25;
+  const centerY = 8;
+
+  const dx = centerX - bot.x;
+  const dy = centerY - bot.y;
+
+  let move = null;
+  if (Math.abs(dx) > Math.abs(dy)) {
+    move = dx > 0 ? { dx: 1, dy: 0, pos: 'left' } : { dx: -1, dy: 0, pos: 'right' };
+  } else {
+    move = dy > 0 ? { dx: 0, dy: 1, pos: 'bottom' } : { dx: 0, dy: -1, pos: 'top' };
+  }
+
+  if (isValidMove(bot, move)) return move;
+
+  // Случайное движение
+  return getRandomValidMove(bot);
+}
+
+// Находит лучшую позицию для атаки базы с распределением ботов
+function findBestAttackPosition(bot, botId) {
+  const baseCenterX = base.x + 1;
+  const baseCenterY = base.y + 1;
+
+  // Позиции для атаки (слева, справа, сверху)
+  const attackPositions = [
+    { x: base.x - 4, y: baseCenterY, pos: 'left', dir: 'right' },   // Слева от базы
+    { x: base.x + 6, y: baseCenterY, pos: 'right', dir: 'left' },  // Справа от базы
+    { x: baseCenterX, y: base.y - 4, pos: 'top', dir: 'bottom' }   // Сверху базы
+  ];
+
+  // Считаем сколько ботов уже идут к каждой позиции
+  const positionCounts = { left: 0, right: 0, top: 0 };
+  for (const otherId in botMemory) {
+    if (otherId === botId) continue;
+    const otherMemory = botMemory[otherId];
+    if (otherMemory && otherMemory.attackTargetPos) {
+      positionCounts[otherMemory.attackTargetPos]++;
+    }
+  }
+
+  // Фильтруем позиции с прямой видимостью и сортируем по занятости
+  const availablePositions = attackPositions
+    .filter(pos => hasLineOfSightToBase(pos.x, pos.y, pos.dir))
+    .map(pos => ({
+      ...pos,
+      distance: Math.abs(bot.x - pos.x) + Math.abs(bot.y - pos.y),
+      botsTargeting: positionCounts[pos.pos]
+    }))
+    .sort((a, b) => {
+      // Приоритет: меньше ботов целятся, затем меньше расстояние
+      if (a.botsTargeting !== b.botsTargeting) {
+        return a.botsTargeting - b.botsTargeting;
+      }
+      return a.distance - b.distance;
+    });
+
+  // Выбираем лучшую позицию (с наименьшей загрузкой)
+  let bestPos = availablePositions.length > 0 ? availablePositions[0] : null;
+
+  // Если бот уже близко к какой-то позиции - остаёмся на ней
+  for (const pos of availablePositions) {
+    if (Math.abs(bot.x - pos.x) <= 2 && Math.abs(bot.y - pos.y) <= 2) {
+      bestPos = pos;
+      break;
+    }
+  }
+
+  // Сохраняем выбранную позицию в памяти бота
+  if (bestPos && botMemory[botId]) {
+    botMemory[botId].attackTargetPos = bestPos.pos;
+  }
+
+  // Если уже на позиции для стрельбы
+  if (bestPos && Math.abs(bot.x - bestPos.x) <= 1 && Math.abs(bot.y - bestPos.y) <= 1) {
+    return {
+      canShoot: true,
+      position: bestPos.dir
+    };
+  }
+
+  // Если бот слишком близко к базе - отступаем
+  const distToBase = Math.abs(bot.x - baseCenterX) + Math.abs(bot.y - baseCenterY);
+  if (distToBase < 4) {
+    // Отступаем назад
+    const retreatX = bot.x < baseCenterX ? bot.x - 2 : bot.x + 2;
+    const retreatY = bot.y < baseCenterY ? bot.y - 2 : bot.y + 2;
+    return {
+      canShoot: false,
+      targetX: retreatX,
+      targetY: retreatY
+    };
+  }
+
+  // Возвращаем целевую позицию с небольшим случайным смещением для разнообразия
+  if (bestPos) {
+    // Добавляем уникальное смещение для каждого бота чтобы не стояли в одной точке
+    const botIndex = parseInt(botId.split('_')[1]) || 0;
+    const offsetX = (botIndex % 3) - 1; // -1, 0, 1
+    const offsetY = Math.floor(botIndex / 3) % 3 - 1; // -1, 0, 1
+
+    return {
+      canShoot: false,
+      targetX: bestPos.x + offsetX,
+      targetY: bestPos.y + offsetY,
+      targetDir: bestPos.dir
+    };
+  }
+
+  // Если нет позиций с прямой видимостью - идём ближе и стреляем по кирпичам
+  return {
+    canShoot: false,
+    targetX: base.x - 3,
+    targetY: baseCenterY
+  };
+}
+
+// Проверка прямой видимости до базы
+function hasLineOfSightToBase(fromX, fromY, direction) {
+  const bulletConfig = bulletDirections[direction === 'bottom' ? 'top' : direction === 'top' ? 'bottom' : direction === 'left' ? 'right' : 'left'];
+  if (!bulletConfig) return false;
+
+  let checkX = fromX;
+  let checkY = fromY;
+
+  for (let i = 0; i < 20; i++) {
+    checkX += bulletConfig.dx;
+    checkY += bulletConfig.dy;
+
+    // Дошли до базы
+    if (base.x <= checkX && checkX < base.x + 3 && base.y <= checkY && checkY < base.y + 3) {
+      return true;
+    }
+
+    // Проверяем бетонные стены
+    for (const wall of walls) {
+      if (wall.x === checkX && wall.y === checkY) {
+        return false;
+      }
+    }
+  }
+
+  return false;
+}
+
+// Проверка валидности хода
+function isValidMove(bot, move) {
+  const newX = bot.x + move.dx;
+  const newY = bot.y + move.dy;
+
+  // Границы поля
+  if (newX < 0 || newX > size.col - 3 || newY < 0 || newY > size.row - 3) {
+    return false;
+  }
+
+  // Проверка стен и кирпичей
+  return !checkWallCollision(newX, newY, move.pos) && !checkBrickCollision(newX, newY, move.pos);
+}
+
+// Поиск обхода препятствия
+function findDetour(bot, targetX, targetY) {
+  const moves = [
+    { dx: 1, dy: 0, pos: 'left' },
+    { dx: -1, dy: 0, pos: 'right' },
+    { dx: 0, dy: 1, pos: 'bottom' },
+    { dx: 0, dy: -1, pos: 'top' },
+    { dx: 1, dy: 1, pos: 'left' },
+    { dx: -1, dy: 1, pos: 'right' },
+    { dx: 1, dy: -1, pos: 'left' },
+    { dx: -1, dy: -1, pos: 'right' }
+  ];
+
+  // Сортируем по близости к цели
+  moves.sort((a, b) => {
+    const distA = Math.abs(bot.x + a.dx - targetX) + Math.abs(bot.y + a.dy - targetY);
+    const distB = Math.abs(bot.x + b.dx - targetX) + Math.abs(bot.y + b.dy - targetY);
+    return distA - distB;
+  });
+
+  for (const move of moves) {
+    if (isValidMove(bot, move)) {
+      return move;
+    }
+  }
+
+  return null;
+}
+
+// Проверка нужно ли стрелять по препятствию
+function shouldShootObstacle(bot) {
+  const bulletConfig = bulletDirections[bot.position];
+  if (!bulletConfig) return false;
+
+  // Проверяем 3 клетки впереди
+  let checkX = bot.x + bulletConfig.offsetX;
+  let checkY = bot.y + bulletConfig.offsetY;
+
+  for (let i = 0; i < 3; i++) {
+    checkX += bulletConfig.dx;
+    checkY += bulletConfig.dy;
+
+    // Нашли кирпич - стреляем
+    for (const brick of bricks) {
+      if (brick.x === checkX && brick.y === checkY && brick.health > 0) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+// Проверка пути к базе
+function isPathToBaseClear(bot) {
+  const bulletConfig = bulletDirections[bot.position];
+  if (!bulletConfig) return false;
+
+  let checkX = bot.x + bulletConfig.offsetX;
+  let checkY = bot.y + bulletConfig.offsetY;
+
+  // Проверяем 10 клеток впереди
+  for (let i = 0; i < 10; i++) {
+    checkX += bulletConfig.dx;
+    checkY += bulletConfig.dy;
+
+    // Если дошли до базы - путь чист
+    if (Math.abs(checkX - base.x) <= 2 && Math.abs(checkY - base.y) <= 2) {
+      return true;
+    }
+
+    // Если встретили бетонную стену - путь не чист
+    for (const wall of walls) {
+      if (wall.x === checkX && wall.y === checkY) {
+        return false;
+      }
+    }
+  }
+
+  return false;
+}
+
+// Проверка столкновения с кирпичом
+function checkBrickCollision(newX, newY, position) {
+  const playerPiece = positionPiece[position];
+  if (!playerPiece) return false;
+
+  for (let y = 0; y < 3; y++) {
+    for (let x = 0; x < 3; x++) {
+      if (playerPiece[y][x] === 1) {
+        const checkX = newX + x;
+        const checkY = newY + y;
+
+        for (const brick of bricks) {
+          if (brick.x === checkX && brick.y === checkY && brick.health > 0) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+// Проверка победы в кооп-режиме
+function checkCoopVictory() {
+  if (enemiesToSpawn === 0 && coopBotCount === 0 && gameState === 'playing') {
+    // Победа в волне
+    io.sockets.emit('wave complete', { wave: coopWave });
+  }
+}
+
+// Проверка поражения в кооп-режиме
+function checkCoopDefeat() {
+  if (base.health <= 0 && gameState === 'playing') {
+    gameState = 'defeat';
+    io.sockets.emit('game over', { reason: 'base destroyed', wave: coopWave, kills: enemiesKilled });
+
+    // Останавливаем спавн
+    if (waveSpawnInterval) {
+      clearInterval(waveSpawnInterval);
+      waveSpawnInterval = null;
+    }
+  }
+}
+
+// Сброс игры
+function resetGame() {
+  gameState = 'waiting';
+  coopWave = 1;
+  enemiesToSpawn = 0;
+  enemiesKilled = 0;
+  coopBotCount = 0;
+
+  if (waveSpawnInterval) {
+    clearInterval(waveSpawnInterval);
+    waveSpawnInterval = null;
+  }
+
+  // Очищаем всех ботов
+  for (const playerId in players) {
+    if (players[playerId].isBot) {
+      if (botIntervals[playerId]) {
+        clearInterval(botIntervals[playerId]);
+        delete botIntervals[playerId];
+      }
+      delete botMemory[playerId];
+      delete players[playerId];
+    }
+  }
+
+  // Очищаем пули
+  for (const bulletId in bulletIntervals) {
+    clearInterval(bulletIntervals[bulletId]);
+    delete bulletIntervals[bulletId];
+  }
+  activeBullets.clear();
+
+  base.health = 1;
+  bricks.length = 0;
+}
 
 // Инициализация пула пуль
 function initializeBulletPool() {
@@ -232,9 +1257,55 @@ io.on('connection', function (socket) {
   socket.on('new player', function (data) {
     const name = typeof data === 'string' ? data : data.name;
     const color = typeof data === 'object' ? data.color : '#00AA00';
+    const mode = typeof data === 'object' ? data.mode : 'pvp';
+
+    // Устанавливаем режим игры (только если еще не установлен или первый игрок)
+    if (Object.keys(players).length === 0) {
+      gameMode = mode;
+
+      // Инициализируем карту для выбранного режима
+      if (gameMode === 'coop') {
+        resetGame();
+        generateCoopMap();
+        startCoopWave();
+      } else {
+        generatePvPMap();
+        // Добавляем ботов только для первого игрока в PvP
+        setTimeout(addPvPBots, 500);
+      }
+    }
 
     const positions = ['top', 'left', 'right', 'bottom'];
-    const spawnPos = getSafeSpawnPosition();
+    let spawnPos;
+
+    if (gameMode === 'coop') {
+      // В кооп-режиме спавним игроков внизу, у базы
+      const coopSpawns = [
+        { x: 20, y: 25 },
+        { x: 28, y: 25 },
+        { x: 16, y: 25 },
+        { x: 32, y: 25 }
+      ];
+      // Ищем свободную позицию
+      for (const pos of coopSpawns) {
+        let occupied = false;
+        for (const playerId in players) {
+          if (!players[playerId].isBot &&
+              Math.abs(players[playerId].x - pos.x) < 3 &&
+              Math.abs(players[playerId].y - pos.y) < 3) {
+            occupied = true;
+            break;
+          }
+        }
+        if (!occupied) {
+          spawnPos = pos;
+          break;
+        }
+      }
+      if (!spawnPos) spawnPos = coopSpawns[0];
+    } else {
+      spawnPos = getSafeSpawnPosition();
+    }
 
     players[socket.id] = {
       name: name || 'Player',
@@ -243,17 +1314,19 @@ io.on('connection', function (socket) {
       isBot: false,
       x: spawnPos.x,
       y: spawnPos.y,
-      position: positions[randomInteger(4)],
+      position: gameMode === 'coop' ? 'top' : positions[randomInteger(4)], // В коопе смотрим вверх
       bullets: {},
       rating: 0,
       lastShot: 0,
       invulnerableUntil: Date.now() + INVULNERABILITY_TIME,
       exploding: false,
       explosionEndTime: 0,
-      respawnShootingCooldown: Date.now() + 2000, // 2 секунды без стрельбы после спавна
+      respawnShootingCooldown: Date.now() + 2000,
+      lives: gameMode === 'coop' ? 3 : 1 // В коопе 3 жизни
     };
 
     socket.emit('player id', socket.id);
+    socket.emit('game mode', { mode: gameMode, wave: coopWave });
   });
 
   socket.on('movePieceRight', () => movePlayer(socket.id, 1, 0, 'left'));   // едет вправо, смотрит вправо (position='left')
@@ -382,6 +1455,29 @@ function checkBulletHit(bullet, shooterId, bulletId) {
     }
   }
 
+  // Проверяем столкновение с кирпичами (только в кооп-режиме)
+  if (gameMode === 'coop') {
+    for (let i = 0; i < bricks.length; i++) {
+      const brick = bricks[i];
+      if (brick.x === bullet.x && brick.y === bullet.y && brick.health > 0) {
+        brick.health--;
+        if (brick.health <= 0) {
+          io.sockets.emit('brick destroyed', { x: brick.x, y: brick.y });
+        }
+        return true;
+      }
+    }
+
+    // Проверяем столкновение с базой
+    if (base.x <= bullet.x && bullet.x < base.x + 3 &&
+        base.y <= bullet.y && bullet.y < base.y + 3) {
+      base.health--;
+      io.sockets.emit('base hit', { health: base.health });
+      checkCoopDefeat();
+      return true;
+    }
+  }
+
   const now = Date.now();
 
   for (const playerId in players) {
@@ -433,6 +1529,21 @@ function checkWallCollision(newX, newY, position) {
         for (const wall of walls) {
           if (wall.x === checkX && wall.y === checkY) {
             return true; // Столкновение со стеной
+          }
+        }
+
+        // Проверяем кирпичи (в кооп-режиме)
+        if (gameMode === 'coop') {
+          for (const brick of bricks) {
+            if (brick.x === checkX && brick.y === checkY && brick.health > 0) {
+              return true; // Столкновение с кирпичом
+            }
+          }
+
+          // Проверяем базу (игроки не могут проехать через базу)
+          if (base.x <= checkX && checkX < base.x + 3 &&
+              base.y <= checkY && checkY < base.y + 3) {
+            return true;
           }
         }
       }
@@ -495,6 +1606,9 @@ function checkPlayerCollision(player, newX, newY, newPosition) {
   for (const playerId in players) {
     const otherPlayer = players[playerId];
     if (otherPlayer === player || !otherPlayer.status) continue;
+
+    // В кооп-режиме игроки не сталкиваются друг с другом (только с врагами)
+    if (gameMode === 'coop' && !player.isBot && !otherPlayer.isBot) continue;
 
     // Пропускаем игроков в процессе взрыва
     if (otherPlayer.exploding && now < otherPlayer.explosionEndTime) continue;
@@ -647,11 +1761,24 @@ function updateGameState() {
   }
 
   // Отправляем состояние только если есть изменения
-  io.sockets.emit('state', {
+  const gameStateData = {
     playField,
     players,
     walls,
-  });
+    gameMode,
+    gameState
+  };
+
+  // Добавляем данные кооп-режима
+  if (gameMode === 'coop') {
+    gameStateData.bricks = bricks;
+    gameStateData.base = base;
+    gameStateData.wave = coopWave;
+    gameStateData.enemiesRemaining = enemiesToSpawn + coopBotCount;
+    gameStateData.enemiesKilled = enemiesKilled;
+  }
+
+  io.sockets.emit('state', gameStateData);
 }
 
 // Применение игрока на поле
@@ -1755,10 +2882,12 @@ function tryMove(botId, dx, dy, position) {
   }
 }
 
-// Добавляем ботов при старте
-addBot();
-addBot();
-addBot();
-
 // Запуск игрового цикла
 setInterval(updateGameState, GAME_UPDATE_INTERVAL);
+
+// Функция для добавления ботов PvP (вызывается при первом подключении в PvP режиме)
+function addPvPBots() {
+  addBot();
+  addBot();
+  addBot();
+}

@@ -32,7 +32,16 @@
           <div class="color-option" data-color="#3100ab" style="background-color: #3100ab;" title="Purple"></div>
         </div>
       </div>
-      <button class="btn-start" id="btn-start">START BATTLE</button>
+
+      <div class="mode-selection">
+        <label>Select Game Mode:</label>
+        <div class="mode-buttons">
+          <button class="mode-btn" data-mode="pvp">PvP Arena</button>
+          <button class="mode-btn" data-mode="coop">Co-op Defense</button>
+        </div>
+      </div>
+
+      <button class="btn-start" id="btn-start" disabled>START BATTLE</button>
     </div>
   </div>
 
@@ -72,6 +81,23 @@
         });
       });
 
+      // Обработка выбора режима
+      const modeButtons = document.querySelectorAll('.mode-btn');
+      let selectedMode = localStorage.getItem('gameMode') || 'pvp';
+
+      modeButtons.forEach(btn => {
+        if (btn.dataset.mode === selectedMode) {
+          btn.classList.add('selected');
+          btnStart.disabled = false;
+        }
+        btn.addEventListener('click', function() {
+          modeButtons.forEach(b => b.classList.remove('selected'));
+          this.classList.add('selected');
+          selectedMode = this.dataset.mode;
+          btnStart.disabled = false;
+        });
+      });
+
       // Обработка старта игры
       function startGame() {
         const name = playerNameInput.value.trim();
@@ -90,6 +116,7 @@
         // Сохраняем данные
         localStorage.setItem('playerName', name);
         localStorage.setItem('playerColor', selectedColor);
+        localStorage.setItem('gameMode', selectedMode);
 
         // Скрываем меню
         menuOverlay.classList.add('hidden');
@@ -97,6 +124,7 @@
         // Передаем данные в игровой код через глобальные переменные
         window.playerName = name;
         window.playerColor = selectedColor;
+        window.gameMode = selectedMode;
         window.gameStarted = true;
       }
 
