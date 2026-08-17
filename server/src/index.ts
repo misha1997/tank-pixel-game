@@ -5,9 +5,9 @@ import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Server } from 'socket.io';
-import type { ClientToServerEvents, GameMode, ServerToClientEvents } from '@tank/shared';
+import type { ClientToServerEvents, ServerToClientEvents } from '@tank/shared';
 import { authRouter } from './auth/router.js';
-import { RoomManager } from './rooms/RoomManager.js';
+import { RoomManager, LOBBY_WATCHERS_ROOM } from './rooms/RoomManager.js';
 import type { GameRoom } from './rooms/GameRoom.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -26,7 +26,8 @@ app.use('/api/auth', authRouter);
 const clientDist = path.join(__dirname, '../../client/dist');
 app.use(express.static(clientDist));
 
-app.get('/', (_request, response) => {
+// SPA fallback so deep links like /room/ABC123 serve the client shell.
+app.get(/^(?!\/api\/|\/socket\.io\/).*/, (_request, response) => {
   response.sendFile(path.join(clientDist, 'index.html'));
 });
 
@@ -34,24 +35,75 @@ server.listen(port, () => {
   console.log(`Starting server on port ${port}`);
 });
 
-// Stage 3 (lobby) replaces this with user-created rooms; for now every
-// player is routed into one of two always-on default rooms by game mode,
-// which is enough to prove the rooms can run fully independently.
 const roomManager = new RoomManager(io);
-const defaultRooms: Record<GameMode, GameRoom> = {
-  pvp: roomManager.createRoom('pvp'),
-  coop: roomManager.createRoom('coop'),
-};
+
+// Always-on public rooms so there is always something to jump into
+// immediately, on top of whatever players create themselves.
+roomManager.createRoom({ name: 'Quick Play: PvP Arena', mode: 'pvp', visibility: 'public', hostSocketId: null, isDefault: true });
+roomManager.createRoom({ name: 'Quick Play: Co-op Defense', mode: 'coop', visibility: 'public', hostSocketId: null, isDefault: true });
 
 const socketRooms = new Map<string, GameRoom>();
+
+function leaveCurrentRoom(socketId: string): void {
+  const room = socketRooms.get(socketId);
+  if (!room) return;
+
+  room.removePlayer(socketId);
+  socketRooms.delete(socketId);
+  roomManager.broadcastRoster(room);
+  roomManager.broadcastLobby();
+  roomManager.removeIfEmptyAndDestroyable(room);
+}
 
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
-  socket.on('new player', ({ name, color, mode }) => {
-    console.log('New player:', name, 'Color:', color, 'Mode:', mode);
+  socket.on('lobby:subscribe', () => {
+    socket.join(LOBBY_WATCHERS_ROOM);
+    socket.emit('lobby:rooms', roomManager.listPublic());
+  });
 
-    const room = defaultRooms[mode];
+  socket.on('lobby:unsubscribe', () => {
+    socket.leave(LOBBY_WATCHERS_ROOM);
+  });
+
+  socket.on('lobby:create', ({ name, mode, visibility }, ack) => {
+    const trimmed = name.trim().slice(0, 40);
+    if (!trimmed) {
+      ack({ ok: false, error: 'Room name is required.' });
+      return;
+    }
+
+    const room = roomManager.createRoom({ name: trimmed, mode, visibility, hostSocketId: socket.id });
+    ack({ ok: true, room: room.toSummary() });
+  });
+
+  socket.on('lobby:join', ({ code }, ack) => {
+    const room = roomManager.getByCode(code.trim());
+    if (!room) {
+      ack({ ok: false, error: 'No room found with that code.' });
+      return;
+    }
+    ack({ ok: true, room: room.toSummary() });
+  });
+
+  socket.on('room:kick', ({ roomId, targetSocketId }) => {
+    const room = roomManager.get(roomId);
+    if (!room || !room.kick(socket.id, targetSocketId)) return;
+
+    socketRooms.delete(targetSocketId);
+    io.sockets.sockets.get(targetSocketId)?.leave(room.id);
+    roomManager.broadcastRoster(room);
+    roomManager.broadcastLobby();
+  });
+
+  socket.on('new player', ({ name, color, roomId }) => {
+    const room = roomManager.get(roomId);
+    if (!room) return;
+
+    console.log('New player:', name, 'Color:', color, 'Room:', room.name);
+
+    socket.leave(LOBBY_WATCHERS_ROOM);
     socketRooms.set(socket.id, room);
     socket.join(room.id);
     room.addPlayer(socket.id, name, color);
@@ -59,7 +111,10 @@ io.on('connection', (socket) => {
     socket.emit('player id', socket.id);
     socket.emit('game mode', { mode: room.mode, wave: room.state.coopWave });
 
-    console.log('Room', room.mode, 'players:', room.playerCount());
+    roomManager.broadcastRoster(room);
+    roomManager.broadcastLobby();
+
+    console.log('Room', room.name, 'players:', room.playerCount());
   });
 
   socket.on('movePieceRight', () => socketRooms.get(socket.id)?.move(socket.id, 1, 0, 'left'));
@@ -77,12 +132,6 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('Player disconnected:', socket.id);
-
-    const room = socketRooms.get(socket.id);
-    if (room) {
-      room.removePlayer(socket.id);
-      socketRooms.delete(socket.id);
-      console.log('Room', room.mode, 'players:', room.playerCount());
-    }
+    leaveCurrentRoom(socket.id);
   });
 });

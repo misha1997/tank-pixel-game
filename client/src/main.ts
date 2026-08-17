@@ -1,11 +1,26 @@
-import { io, type Socket } from 'socket.io-client';
-import type { ClientToServerEvents, GameStateSnapshot, ServerToClientEvents } from '@tank/shared';
+import type { GameStateSnapshot } from '@tank/shared';
+import { socket } from './socket.js';
 import View from './view.js';
 import { initMenu } from './menu.js';
 import { initAuth } from './auth.js';
+import { initLobby } from './lobby.js';
+import { initRoster } from './roster.js';
 
 const root = document.querySelector<HTMLElement>('#root')!;
-const socket = io() as unknown as Socket<ServerToClientEvents, ClientToServerEvents>;
+
+function showToast(message: string): void {
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
+
+const kickedNotice = sessionStorage.getItem('kickedNotice');
+if (kickedNotice) {
+  sessionStorage.removeItem('kickedNotice');
+  showToast('You were removed from that room by the host.');
+}
 
 let myPlayerId: string | null = null;
 const keyStates: Record<number, boolean> = {};
@@ -21,11 +36,19 @@ const debugMode = window.location.search.includes('debug');
 let renderedFrames = 0;
 
 initAuth((account) => {
-  initMenu(({ name, color, mode }) => {
-    view = new View(root);
-    socket.emit('new player', { name, color, mode });
-    console.log('Game started with name:', name, ', color:', color, ', mode:', mode);
-  }, account);
+  initLobby(account, (room) => {
+    initRoster(room);
+    initMenu(({ name, color }) => {
+      view = new View(root);
+      socket.emit('new player', { name, color, roomId: room.id });
+      console.log('Game started with name:', name, ', color:', color, ', room:', room.name);
+    }, account, room);
+  });
+});
+
+socket.on('room:kicked', () => {
+  sessionStorage.setItem('kickedNotice', '1');
+  location.reload();
 });
 
 socket.on('player id', (id) => {

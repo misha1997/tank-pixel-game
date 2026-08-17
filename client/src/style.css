@@ -47,6 +47,7 @@ img.manual {
 
 /* Приветственное меню / вход */
 #auth-overlay,
+#lobby-overlay,
 #menu-overlay {
     position: fixed;
     top: 0;
@@ -62,6 +63,7 @@ img.manual {
 }
 
 #auth-overlay.hidden,
+#lobby-overlay.hidden,
 #menu-overlay.hidden {
     display: none;
 }
@@ -373,4 +375,190 @@ canvas {
 
 .manual {
     display: none !important;
+}
+
+/* Лоббі */
+.lobby-container {
+    max-width: 780px;
+}
+
+.lobby-columns {
+    display: flex;
+    gap: 30px;
+    text-align: left;
+}
+
+.lobby-list-panel {
+    flex: 1.3;
+    min-width: 0;
+}
+
+.lobby-list-panel > label,
+.lobby-form > label {
+    display: block;
+    color: #fff;
+    font-size: 16px;
+    margin-bottom: 12px;
+    font-family: Arial, sans-serif;
+}
+
+.lobby-room-list {
+    max-height: 320px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.lobby-empty {
+    color: rgba(255, 255, 255, 0.7);
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+}
+
+.lobby-room-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 10px 12px;
+    color: #fff;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+}
+
+.lobby-room-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lobby-room-mode {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.lobby-room-status--waiting {
+    color: #ffd700;
+}
+
+.lobby-room-status--playing {
+    color: #7ee787;
+}
+
+.lobby-join-btn,
+.roster-kick-btn {
+    background: #7b8566;
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    padding: 6px 14px;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.lobby-join-btn:hover,
+.roster-kick-btn:hover {
+    background: #8b9576;
+}
+
+.lobby-side-panel {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.lobby-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.lobby-form input {
+    padding: 10px 14px;
+    font-size: 16px;
+    font-family: 'DS-Digital-Italic', monospace;
+    background: rgba(255, 255, 255, 0.9);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    outline: none;
+}
+
+.lobby-toggle-group {
+    display: flex;
+    gap: 8px;
+}
+
+.lobby-toggle-group .mode-btn {
+    padding: 10px;
+    font-size: 14px;
+}
+
+.lobby-form .btn-start {
+    padding: 12px 0;
+    font-size: 18px;
+}
+
+/* Інфо про кімнату (у #menu-overlay) */
+.room-info {
+    color: #fff;
+    font-size: 14px;
+    font-family: Arial, sans-serif;
+    margin-bottom: 20px;
+    word-break: break-all;
+}
+
+/* Плаваюча панель ростера кімнати — лишається видимою і під час бою */
+#roster-panel {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 900;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    padding: 10px 14px;
+    min-width: 160px;
+    max-width: 240px;
+}
+
+#roster-panel.hidden {
+    display: none;
+}
+
+#roster-panel label {
+    display: block;
+    color: #fff;
+    font-size: 13px;
+    margin-bottom: 6px;
+    font-family: Arial, sans-serif;
+    opacity: 0.8;
+}
+
+.roster-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: #fff;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    padding: 3px 0;
+}
+
+.toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+    padding: 12px 20px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    z-index: 2000;
+    animation: fadeIn 0.3s ease;
 }

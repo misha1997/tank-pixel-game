@@ -1,4 +1,13 @@
-import type { GameMode, GameStateSnapshot, NewPlayerPayload } from './types.js';
+import type {
+  CreateRoomPayload,
+  GameMode,
+  GameStateSnapshot,
+  JoinRoomPayload,
+  NewPlayerPayload,
+  RoomActionResult,
+  RoomPlayerInfo,
+  RoomSummary,
+} from './types.js';
 
 export interface ClientToServerEvents {
   'new player': (data: NewPlayerPayload) => void;
@@ -8,6 +17,12 @@ export interface ClientToServerEvents {
   movePieceRight: () => void;
   moveShot: () => void;
   restart: () => void;
+
+  'lobby:subscribe': () => void;
+  'lobby:unsubscribe': () => void;
+  'lobby:create': (data: CreateRoomPayload, ack: (result: RoomActionResult) => void) => void;
+  'lobby:join': (data: JoinRoomPayload, ack: (result: RoomActionResult) => void) => void;
+  'room:kick': (data: { roomId: string; targetSocketId: string }) => void;
 }
 
 export interface ServerToClientEvents {
@@ -22,4 +37,8 @@ export interface ServerToClientEvents {
   'base hit': (data: { health: number }) => void;
   'wave complete': (data: { wave: number }) => void;
   'game over': (data: { reason: string; wave: number; kills: number }) => void;
+
+  'lobby:rooms': (rooms: RoomSummary[]) => void;
+  'room:players': (players: RoomPlayerInfo[]) => void;
+  'room:kicked': () => void;
 }

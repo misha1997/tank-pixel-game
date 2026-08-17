@@ -37,12 +37,53 @@
     </div>
   </div>
 
+  <!-- Лоббі -->
+  <div id="lobby-overlay" class="hidden">
+    <div class="menu-container lobby-container">
+      <div class="menu-title">TANK BATTLE</div>
+      <div class="menu-subtitle">Choose a Battle</div>
+      <div id="lobby-account-status" class="account-status"></div>
+
+      <div class="lobby-columns">
+        <div class="lobby-list-panel">
+          <label>Public Rooms:</label>
+          <div id="lobby-room-list" class="lobby-room-list"></div>
+        </div>
+
+        <div class="lobby-side-panel">
+          <form id="lobby-create-form" class="lobby-form">
+            <label>Create a Room:</label>
+            <input type="text" id="lobby-create-name" maxlength="40" placeholder="Room name" autocomplete="off">
+            <div class="lobby-toggle-group" id="lobby-create-mode">
+              <button type="button" class="mode-btn selected" data-value="pvp">PvP</button>
+              <button type="button" class="mode-btn" data-value="coop">Co-op</button>
+            </div>
+            <div class="lobby-toggle-group" id="lobby-create-visibility">
+              <button type="button" class="mode-btn selected" data-value="public">Public</button>
+              <button type="button" class="mode-btn" data-value="private">Private</button>
+            </div>
+            <button type="submit" class="btn-start">CREATE ROOM</button>
+          </form>
+
+          <form id="lobby-join-form" class="lobby-form">
+            <label for="lobby-join-code">Join by Code:</label>
+            <input type="text" id="lobby-join-code" maxlength="6" placeholder="ABC123" autocomplete="off">
+            <button type="submit" class="btn-start">JOIN</button>
+          </form>
+
+          <div id="lobby-error" class="auth-error"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Приветственное меню -->
   <div id="menu-overlay" class="hidden">
     <div class="menu-container">
       <div class="menu-title">TANK BATTLE</div>
       <div class="menu-subtitle">Pixel War Arena</div>
       <div id="account-status" class="account-status"></div>
+      <div id="room-info" class="room-info"></div>
       <div class="input-group">
         <label for="player-name">Enter Your Callsign:</label>
         <input type="text" id="player-name" maxlength="15" placeholder="Warrior" autocomplete="off">
@@ -61,17 +102,12 @@
         </div>
       </div>
 
-      <div class="mode-selection">
-        <label>Select Game Mode:</label>
-        <div class="mode-buttons">
-          <button class="mode-btn" data-mode="pvp">PvP Arena</button>
-          <button class="mode-btn" data-mode="coop">Co-op Defense</button>
-        </div>
-      </div>
-
-      <button class="btn-start" id="btn-start" disabled>START BATTLE</button>
+      <button class="btn-start" id="btn-start">START BATTLE</button>
     </div>
   </div>
+
+  <!-- Ростер кімнати (лишається видимим і під час бою) -->
+  <div id="roster-panel" class="hidden"></div>
 
   <!-- Игровой контейнер -->
   <div class="wrapper">

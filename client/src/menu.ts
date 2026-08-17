@@ -1,19 +1,18 @@
-import type { AuthUser, GameMode } from '@tank/shared';
+import type { AuthUser, RoomSummary } from '@tank/shared';
 import { logout } from './auth.js';
 
 export interface StartGamePayload {
   name: string;
   color: string;
-  mode: GameMode;
 }
 
-export function initMenu(onStart: (payload: StartGamePayload) => void, account: AuthUser | null): void {
+export function initMenu(onStart: (payload: StartGamePayload) => void, account: AuthUser | null, room: RoomSummary): void {
   const menuOverlay = document.getElementById('menu-overlay') as HTMLElement;
   const playerNameInput = document.getElementById('player-name') as HTMLInputElement;
   const btnStart = document.getElementById('btn-start') as HTMLButtonElement;
   const colorOptions = document.querySelectorAll<HTMLElement>('.color-option');
-  const modeButtons = document.querySelectorAll<HTMLButtonElement>('.mode-btn');
   const accountStatus = document.getElementById('account-status') as HTMLElement;
+  const roomInfo = document.getElementById('room-info') as HTMLElement;
 
   menuOverlay.classList.remove('hidden');
 
@@ -34,6 +33,16 @@ export function initMenu(onStart: (payload: StartGamePayload) => void, account: 
     accountStatus.textContent = 'Playing as Guest — progress will not be saved';
   }
 
+  roomInfo.replaceChildren();
+  const roomLine = document.createElement('div');
+  roomLine.textContent = `Room: ${room.name} (${room.mode === 'coop' ? 'Co-op' : 'PvP'})`;
+  roomInfo.appendChild(roomLine);
+  if (room.visibility === 'private') {
+    const codeLine = document.createElement('div');
+    codeLine.textContent = `Invite code: ${room.code} — link: ${location.origin}/room/${room.code}`;
+    roomInfo.appendChild(codeLine);
+  }
+
   const savedColor = localStorage.getItem('playerColor') || '#00AA00';
 
   colorOptions.forEach((option) => {
@@ -43,21 +52,6 @@ export function initMenu(onStart: (payload: StartGamePayload) => void, account: 
     option.addEventListener('click', () => {
       colorOptions.forEach((opt) => opt.classList.remove('selected'));
       option.classList.add('selected');
-    });
-  });
-
-  let selectedMode = (localStorage.getItem('gameMode') as GameMode) || 'pvp';
-
-  modeButtons.forEach((btn) => {
-    if (btn.dataset.mode === selectedMode) {
-      btn.classList.add('selected');
-      btnStart.disabled = false;
-    }
-    btn.addEventListener('click', () => {
-      modeButtons.forEach((b) => b.classList.remove('selected'));
-      btn.classList.add('selected');
-      selectedMode = btn.dataset.mode as GameMode;
-      btnStart.disabled = false;
     });
   });
 
@@ -77,11 +71,10 @@ export function initMenu(onStart: (payload: StartGamePayload) => void, account: 
 
     localStorage.setItem('playerName', name);
     localStorage.setItem('playerColor', selectedColor);
-    localStorage.setItem('gameMode', selectedMode);
 
     menuOverlay.classList.add('hidden');
 
-    onStart({ name, color: selectedColor, mode: selectedMode });
+    onStart({ name, color: selectedColor });
   }
 
   btnStart.addEventListener('click', startGame);

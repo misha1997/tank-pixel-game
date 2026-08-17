@@ -72,7 +72,7 @@ export interface GameStateSnapshot {
 export interface NewPlayerPayload {
   name: string;
   color: string;
-  mode: GameMode;
+  roomId: string;
 }
 
 export interface AuthUser {
@@ -80,3 +80,35 @@ export interface AuthUser {
   username: string;
   rating: number;
 }
+
+export type RoomVisibility = 'public' | 'private';
+export type RoomStatus = 'waiting' | 'playing';
+
+export interface RoomSummary {
+  id: string;
+  code: string;
+  name: string;
+  mode: GameMode;
+  visibility: RoomVisibility;
+  status: RoomStatus;
+  playerCount: number;
+  maxPlayers: number;
+}
+
+export interface RoomPlayerInfo {
+  socketId: string;
+  name: string;
+  isHost: boolean;
+}
+
+export interface CreateRoomPayload {
+  name: string;
+  mode: GameMode;
+  visibility: RoomVisibility;
+}
+
+export interface JoinRoomPayload {
+  code: string;
+}
+
+export type RoomActionResult = { ok: true; room: RoomSummary } | { ok: false; error: string };
