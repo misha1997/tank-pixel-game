@@ -32,6 +32,7 @@ function startGame(): void {
   localStorage.setItem('playerName', name);
   localStorage.setItem('playerColor', selectedColor);
 
+  document.getElementById('menu-overlay')?.classList.add('hidden');
   onStartCallback?.({ name, color: selectedColor });
 }
 
