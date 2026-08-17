@@ -4,6 +4,7 @@ import type {
   ClientToServerEvents,
   GameMode,
   GameStateSnapshot,
+  MapDefinition,
   RoomPlayerInfo,
   RoomStatus,
   RoomSummary,
@@ -31,6 +32,7 @@ export interface GameRoomOptions {
   visibility: RoomVisibility;
   hostSocketId: string | null;
   isDefault: boolean;
+  map: MapDefinition;
 }
 
 export class GameRoom {
@@ -71,12 +73,7 @@ export class GameRoom {
     this.pvpBots = new PvpBotManager(this.state, this.bullets, this.players, this.ai);
 
     resetPlayField(this.state.playField);
-
-    if (this.mode === 'coop') {
-      this.map.generateCoopMap();
-    } else {
-      this.map.generatePvPMap();
-    }
+    this.map.applyMap(options.map, this.mode);
 
     this.tickInterval = setInterval(() => this.tick(), GAME_UPDATE_INTERVAL);
 

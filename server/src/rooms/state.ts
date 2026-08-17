@@ -4,6 +4,7 @@ import type {
   BrickState,
   BulletState,
   GameMode,
+  MapCell,
   MatchState,
   PlayerState,
   WallState,
@@ -53,6 +54,7 @@ export interface RoomState {
   lastGameUpdate: number;
 
   walls: WallState[];
+  enemySpawnPoints: MapCell[];
 }
 
 export function createInitialRoomState(mode: GameMode): RoomState {
@@ -81,6 +83,7 @@ export function createInitialRoomState(mode: GameMode): RoomState {
     lastGameUpdate: 0,
 
     walls: [],
+    enemySpawnPoints: [],
   };
 }
 

@@ -1,5 +1,7 @@
 import type { AuthUser, GameMode, RoomSummary, RoomVisibility } from '@tank/shared';
 import { socket } from './socket.js';
+import { fetchMaps } from './maps.js';
+import { initMapEditor } from './mapEditor.js';
 
 export function initLobby(account: AuthUser | null, onRoomChosen: (room: RoomSummary) => void): void {
   const overlay = document.getElementById('lobby-overlay') as HTMLElement;
@@ -9,11 +11,47 @@ export function initLobby(account: AuthUser | null, onRoomChosen: (room: RoomSum
   const createNameInput = document.getElementById('lobby-create-name') as HTMLInputElement;
   const createModeGroup = document.getElementById('lobby-create-mode') as HTMLElement;
   const createVisibilityGroup = document.getElementById('lobby-create-visibility') as HTMLElement;
+  const createMapSelect = document.getElementById('lobby-create-map') as HTMLSelectElement;
   const joinForm = document.getElementById('lobby-join-form') as HTMLFormElement;
   const joinCodeInput = document.getElementById('lobby-join-code') as HTMLInputElement;
   const errorBox = document.getElementById('lobby-error') as HTMLElement;
+  const editorBtn = document.getElementById('lobby-editor-btn') as HTMLButtonElement;
 
   accountStatus.textContent = account ? `Playing as ${account.username}` : 'Playing as Guest';
+
+  async function refreshMapOptions(): Promise<void> {
+    const mode = (selectedToggle(createModeGroup) || 'pvp') as GameMode;
+    const { builtin, public: publicMaps, mine } = await fetchMaps(mode);
+
+    createMapSelect.replaceChildren();
+    for (const map of builtin) {
+      const option = document.createElement('option');
+      option.value = map.id;
+      option.textContent = `${map.name} (Built-in)`;
+      createMapSelect.appendChild(option);
+    }
+    for (const map of mine) {
+      const option = document.createElement('option');
+      option.value = map.id;
+      option.textContent = `${map.name} (Mine)`;
+      createMapSelect.appendChild(option);
+    }
+    for (const map of publicMaps) {
+      if (mine.some((m) => m.id === map.id)) continue;
+      const option = document.createElement('option');
+      option.value = map.id;
+      option.textContent = `${map.name} (by ${map.ownerName ?? 'someone'})`;
+      createMapSelect.appendChild(option);
+    }
+  }
+
+  editorBtn.addEventListener('click', () => {
+    overlay.classList.add('hidden');
+    initMapEditor(() => {
+      overlay.classList.remove('hidden');
+      refreshMapOptions();
+    });
+  });
 
   function selectedToggle(group: HTMLElement): string {
     return group.querySelector<HTMLElement>('.selected')?.dataset.value ?? '';
@@ -29,6 +67,8 @@ export function initLobby(account: AuthUser | null, onRoomChosen: (room: RoomSum
   }
   wireToggleGroup(createModeGroup);
   wireToggleGroup(createVisibilityGroup);
+  createModeGroup.addEventListener('click', () => refreshMapOptions());
+  refreshMapOptions();
 
   function renderRooms(rooms: RoomSummary[]): void {
     listEl.replaceChildren();
@@ -103,8 +143,9 @@ export function initLobby(account: AuthUser | null, onRoomChosen: (room: RoomSum
     const name = createNameInput.value.trim() || `${account?.username ?? 'Guest'}'s Room`;
     const mode = (selectedToggle(createModeGroup) || 'pvp') as GameMode;
     const visibility = (selectedToggle(createVisibilityGroup) || 'public') as RoomVisibility;
+    const mapId = createMapSelect.value || undefined;
 
-    socket.emit('lobby:create', { name, mode, visibility }, (result) => {
+    socket.emit('lobby:create', { name, mode, visibility, mapId }, (result) => {
       if (!result.ok) {
         errorBox.textContent = result.error;
         return;

@@ -105,6 +105,7 @@ export interface CreateRoomPayload {
   name: string;
   mode: GameMode;
   visibility: RoomVisibility;
+  mapId?: string;
 }
 
 export interface JoinRoomPayload {
@@ -112,3 +113,39 @@ export interface JoinRoomPayload {
 }
 
 export type RoomActionResult = { ok: true; room: RoomSummary } | { ok: false; error: string };
+
+export interface MapCell {
+  x: number;
+  y: number;
+}
+
+// Grid is always the standard 50x30 arena (shared/src/constants.ts `size`) —
+// variable map sizes are a Stage 8 (fullscreen scaling) concern, not this one.
+export interface MapDefinition {
+  walls: MapCell[];
+  bricks: MapCell[];
+  base?: MapCell;
+  enemySpawnPoints?: MapCell[];
+}
+
+export interface MapSummary {
+  id: string;
+  name: string;
+  mode: GameMode;
+  visibility: RoomVisibility;
+  isBuiltin: boolean;
+  ownerName: string | null;
+}
+
+export interface MapListResponse {
+  builtin: MapSummary[];
+  public: MapSummary[];
+  mine: MapSummary[];
+}
+
+export interface SaveMapPayload {
+  name: string;
+  mode: GameMode;
+  visibility: RoomVisibility;
+  data: MapDefinition;
+}

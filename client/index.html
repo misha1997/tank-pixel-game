@@ -62,6 +62,7 @@
               <button type="button" class="mode-btn selected" data-value="public">Public</button>
               <button type="button" class="mode-btn" data-value="private">Private</button>
             </div>
+            <select id="lobby-create-map"></select>
             <button type="submit" class="btn-start">CREATE ROOM</button>
           </form>
 
@@ -72,8 +73,38 @@
           </form>
 
           <div id="lobby-error" class="auth-error"></div>
+
+          <button type="button" class="btn-guest" id="lobby-editor-btn">Open Map Editor</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Редактор мап -->
+  <div id="editor-overlay" class="hidden">
+    <div class="editor-shell">
+      <div class="editor-toolbar">
+        <button type="button" id="editor-back-btn" class="btn-guest">&larr; Back to Lobby</button>
+        <input type="text" id="editor-name" maxlength="40" placeholder="Map name" autocomplete="off">
+        <div class="lobby-toggle-group" id="editor-mode">
+          <button type="button" class="mode-btn selected" data-value="pvp">PvP</button>
+          <button type="button" class="mode-btn" data-value="coop">Co-op</button>
+        </div>
+        <div class="lobby-toggle-group" id="editor-visibility">
+          <button type="button" class="mode-btn selected" data-value="public">Public</button>
+          <button type="button" class="mode-btn" data-value="private">Private</button>
+        </div>
+        <div class="lobby-toggle-group" id="editor-tool">
+          <button type="button" class="mode-btn selected" data-value="wall">Wall</button>
+          <button type="button" class="mode-btn" data-value="brick">Brick</button>
+          <button type="button" class="mode-btn" data-value="base">Base</button>
+          <button type="button" class="mode-btn" data-value="spawn">Enemy Spawn</button>
+          <button type="button" class="mode-btn" data-value="erase">Erase</button>
+        </div>
+        <button type="button" id="editor-save-btn" class="btn-start">SAVE MAP</button>
+        <div id="editor-error" class="auth-error"></div>
+      </div>
+      <canvas id="editor-canvas"></canvas>
     </div>
   </div>
 

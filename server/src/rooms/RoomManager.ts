@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { Server } from 'socket.io';
 import type { ClientToServerEvents, GameMode, RoomVisibility, ServerToClientEvents } from '@tank/shared';
 import { GameRoom } from './GameRoom.js';
+import { resolveMapDefinition } from '../maps/resolve.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -14,13 +15,16 @@ export class RoomManager {
 
   constructor(private readonly io: TypedServer) {}
 
-  createRoom(options: {
+  async createRoom(options: {
     name: string;
     mode: GameMode;
     visibility: RoomVisibility;
     hostSocketId: string | null;
     isDefault?: boolean;
-  }): GameRoom {
+    mapId?: string;
+  }): Promise<GameRoom> {
+    const map = await resolveMapDefinition(options.mode, options.mapId);
+
     const room = new GameRoom(
       {
         id: uuidv4(),
@@ -30,6 +34,7 @@ export class RoomManager {
         visibility: options.visibility,
         hostSocketId: options.hostSocketId,
         isDefault: options.isDefault ?? false,
+        map,
       },
       this.io,
     );

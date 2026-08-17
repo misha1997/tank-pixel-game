@@ -41,15 +41,9 @@ export class CoopManager {
 
   spawnCoopEnemy(): void {
     const { state } = this;
-    const spawnPoints = [
-      { x: 10, y: 4 },
-      { x: 39, y: 4 },
-      { x: 12, y: 13 },
-      { x: 37, y: 13 },
-    ];
 
     let spawn: { x: number; y: number } | null = null;
-    for (const point of spawnPoints) {
+    for (const point of state.enemySpawnPoints) {
       let inWall = false;
       for (const wall of state.walls) {
         if (Math.abs(wall.x - point.x) <= 2 && Math.abs(wall.y - point.y) <= 2) {

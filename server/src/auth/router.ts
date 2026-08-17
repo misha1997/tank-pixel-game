@@ -2,9 +2,8 @@ import { Router } from 'express';
 import type { AuthUser } from '@tank/shared';
 import { prisma } from '../db/prisma.js';
 import { hashPassword, verifyPassword } from './password.js';
-import { signSessionToken, verifySessionToken } from './jwt.js';
-
-export const SESSION_COOKIE = 'tank_session';
+import { signSessionToken } from './jwt.js';
+import { getSessionUserId, SESSION_COOKIE } from './session.js';
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,20}$/;
 const MIN_PASSWORD_LENGTH = 6;
@@ -74,15 +73,14 @@ authRouter.post('/logout', (_req, res) => {
 });
 
 authRouter.get('/me', async (req, res) => {
-  const token = req.cookies?.[SESSION_COOKIE];
-  const session = typeof token === 'string' ? verifySessionToken(token) : null;
+  const userId = getSessionUserId(req);
 
-  if (!session) {
+  if (!userId) {
     res.status(401).json({ error: 'Not authenticated.' });
     return;
   }
 
-  const user = await prisma.user.findUnique({ where: { id: session.sub } });
+  const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
     res.clearCookie(SESSION_COOKIE, { path: '/' });
     res.status(401).json({ error: 'Not authenticated.' });

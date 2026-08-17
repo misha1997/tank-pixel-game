@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { Server } from 'socket.io';
 import type { ClientToServerEvents, ServerToClientEvents } from '@tank/shared';
 import { authRouter } from './auth/router.js';
+import { mapsRouter } from './maps/router.js';
 import { RoomManager, LOBBY_WATCHERS_ROOM } from './rooms/RoomManager.js';
 import type { GameRoom } from './rooms/GameRoom.js';
 
@@ -22,6 +23,7 @@ app.set('port', port);
 app.use(express.json());
 app.use(cookieParser());
 app.use('/api/auth', authRouter);
+app.use('/api/maps', mapsRouter);
 
 const clientDist = path.join(__dirname, '../../client/dist');
 app.use(express.static(clientDist));
@@ -39,8 +41,8 @@ const roomManager = new RoomManager(io);
 
 // Always-on public rooms so there is always something to jump into
 // immediately, on top of whatever players create themselves.
-roomManager.createRoom({ name: 'Quick Play: PvP Arena', mode: 'pvp', visibility: 'public', hostSocketId: null, isDefault: true });
-roomManager.createRoom({ name: 'Quick Play: Co-op Defense', mode: 'coop', visibility: 'public', hostSocketId: null, isDefault: true });
+await roomManager.createRoom({ name: 'Quick Play: PvP Arena', mode: 'pvp', visibility: 'public', hostSocketId: null, isDefault: true });
+await roomManager.createRoom({ name: 'Quick Play: Co-op Defense', mode: 'coop', visibility: 'public', hostSocketId: null, isDefault: true });
 
 const socketRooms = new Map<string, GameRoom>();
 
@@ -67,14 +69,14 @@ io.on('connection', (socket) => {
     socket.leave(LOBBY_WATCHERS_ROOM);
   });
 
-  socket.on('lobby:create', ({ name, mode, visibility }, ack) => {
+  socket.on('lobby:create', async ({ name, mode, visibility, mapId }, ack) => {
     const trimmed = name.trim().slice(0, 40);
     if (!trimmed) {
       ack({ ok: false, error: 'Room name is required.' });
       return;
     }
 
-    const room = roomManager.createRoom({ name: trimmed, mode, visibility, hostSocketId: socket.id });
+    const room = await roomManager.createRoom({ name: trimmed, mode, visibility, hostSocketId: socket.id, mapId });
     ack({ ok: true, room: room.toSummary() });
   });
 
