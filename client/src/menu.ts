@@ -1,25 +1,85 @@
 import type { AuthUser, RoomSummary } from '@tank/shared';
 import { logout } from './auth.js';
+import { navigate } from './router.js';
 
 export interface StartGamePayload {
   name: string;
   color: string;
 }
 
-export function initMenu(onStart: (payload: StartGamePayload) => void, account: AuthUser | null, room: RoomSummary): void {
-  const menuOverlay = document.getElementById('menu-overlay') as HTMLElement;
+let currentAccount: AuthUser | null = null;
+let currentRoom: RoomSummary | null = null;
+let onStartCallback: ((payload: StartGamePayload) => void) | null = null;
+let wired = false;
+
+function startGame(): void {
+  const playerNameInput = document.getElementById('player-name') as HTMLInputElement;
+  const colorOptions = document.querySelectorAll<HTMLElement>('.color-option');
+
+  const name = playerNameInput.value.trim();
+  const selectedOption = document.querySelector<HTMLElement>('.color-option.selected');
+  const selectedColor = selectedOption ? selectedOption.dataset.color! : colorOptions[0].dataset.color!;
+
+  if (!name) {
+    playerNameInput.focus();
+    playerNameInput.style.borderColor = '#ff4444';
+    setTimeout(() => {
+      playerNameInput.style.borderColor = '';
+    }, 500);
+    return;
+  }
+
+  localStorage.setItem('playerName', name);
+  localStorage.setItem('playerColor', selectedColor);
+
+  onStartCallback?.({ name, color: selectedColor });
+}
+
+function wireOnce(): void {
   const playerNameInput = document.getElementById('player-name') as HTMLInputElement;
   const btnStart = document.getElementById('btn-start') as HTMLButtonElement;
+  const backBtn = document.getElementById('menu-back-btn') as HTMLButtonElement;
+  const colorOptions = document.querySelectorAll<HTMLElement>('.color-option');
+
+  colorOptions.forEach((option) => {
+    option.addEventListener('click', () => {
+      colorOptions.forEach((opt) => opt.classList.remove('selected'));
+      option.classList.add('selected');
+    });
+  });
+
+  btnStart.addEventListener('click', startGame);
+  playerNameInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') startGame();
+  });
+  backBtn.addEventListener('click', () => navigate('/'));
+}
+
+export function showMenu(account: AuthUser | null, room: RoomSummary, onStart: (payload: StartGamePayload) => void): void {
+  currentAccount = account;
+  currentRoom = room;
+  onStartCallback = onStart;
+
+  if (!wired) {
+    wireOnce();
+    wired = true;
+  }
+
+  const menuOverlay = document.getElementById('menu-overlay') as HTMLElement;
+  const playerNameInput = document.getElementById('player-name') as HTMLInputElement;
   const colorOptions = document.querySelectorAll<HTMLElement>('.color-option');
   const accountStatus = document.getElementById('account-status') as HTMLElement;
   const roomInfo = document.getElementById('room-info') as HTMLElement;
 
   menuOverlay.classList.remove('hidden');
+  playerNameInput.readOnly = false;
+  playerNameInput.style.borderColor = '';
 
-  if (account) {
-    playerNameInput.value = account.username;
+  accountStatus.replaceChildren();
+  if (currentAccount) {
+    playerNameInput.value = currentAccount.username;
     playerNameInput.readOnly = true;
-    accountStatus.textContent = `Logged in as ${account.username} (Rating: ${account.rating}) — `;
+    accountStatus.append(`Logged in as ${currentAccount.username} (Rating: ${currentAccount.rating}) — `);
     const logoutLink = document.createElement('a');
     logoutLink.textContent = 'Log out';
     logoutLink.addEventListener('click', () => {
@@ -44,43 +104,13 @@ export function initMenu(onStart: (payload: StartGamePayload) => void, account: 
   }
 
   const savedColor = localStorage.getItem('playerColor') || '#00AA00';
-
   colorOptions.forEach((option) => {
-    if (option.dataset.color === savedColor) {
-      option.classList.add('selected');
-    }
-    option.addEventListener('click', () => {
-      colorOptions.forEach((opt) => opt.classList.remove('selected'));
-      option.classList.add('selected');
-    });
+    option.classList.toggle('selected', option.dataset.color === savedColor);
   });
+}
 
-  function startGame(): void {
-    const name = playerNameInput.value.trim();
-    const selectedOption = document.querySelector<HTMLElement>('.color-option.selected');
-    const selectedColor = selectedOption ? selectedOption.dataset.color! : colorOptions[0].dataset.color!;
-
-    if (!name) {
-      playerNameInput.focus();
-      playerNameInput.style.borderColor = '#ff4444';
-      setTimeout(() => {
-        playerNameInput.style.borderColor = '';
-      }, 500);
-      return;
-    }
-
-    localStorage.setItem('playerName', name);
-    localStorage.setItem('playerColor', selectedColor);
-
-    menuOverlay.classList.add('hidden');
-
-    onStart({ name, color: selectedColor });
-  }
-
-  btnStart.addEventListener('click', startGame);
-  playerNameInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      startGame();
-    }
-  });
+export function hideMenu(): void {
+  document.getElementById('menu-overlay')?.classList.add('hidden');
+  onStartCallback = null;
+  currentRoom = null;
 }

@@ -1,11 +1,14 @@
-import type { GameStateSnapshot } from '@tank/shared';
+import type { AuthUser, GameStateSnapshot, RoomSummary } from '@tank/shared';
 import { socket } from './socket.js';
 import View from './view.js';
-import { initMenu } from './menu.js';
+import { showMenu, hideMenu, type StartGamePayload } from './menu.js';
 import { initAuth } from './auth.js';
-import { initLobby } from './lobby.js';
-import { initRoster } from './roster.js';
-import { initChat, isTypingIntoField } from './chat.js';
+import { showLobby, hideLobby } from './lobby.js';
+import { showRoster, hideRoster } from './roster.js';
+import { showChat, hideChat, isTypingIntoField } from './chat.js';
+import { showMapEditor, hideMapEditor } from './mapEditor.js';
+import { showLeaderboard, hideLeaderboard } from './leaderboard.js';
+import { registerRoute, navigate, startRouter, currentGeneration } from './router.js';
 
 const root = document.querySelector<HTMLElement>('#root')!;
 
@@ -15,12 +18,6 @@ function showToast(message: string): void {
   toast.textContent = message;
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 4000);
-}
-
-const kickedNotice = sessionStorage.getItem('kickedNotice');
-if (kickedNotice) {
-  sessionStorage.removeItem('kickedNotice');
-  showToast('You were removed from that room by the host.');
 }
 
 let myPlayerId: string | null = null;
@@ -36,21 +33,79 @@ let lastState: GameStateSnapshot | null = null;
 const debugMode = window.location.search.includes('debug');
 let renderedFrames = 0;
 
-initAuth((account) => {
-  initLobby(account, (room) => {
-    initRoster(room);
-    initChat();
-    initMenu(({ name, color }) => {
-      view = new View(root);
-      socket.emit('new player', { name, color, roomId: room.id, rating: account?.rating, userId: account?.id });
-      console.log('Game started with name:', name, ', color:', color, ', room:', room.name);
-    }, account, room);
+// --- Routing -----------------------------------------------------------
+
+function startMatch(payload: StartGamePayload, room: RoomSummary, account: AuthUser | null): void {
+  view = new View(root);
+  socket.emit('new player', {
+    name: payload.name,
+    color: payload.color,
+    roomId: room.id,
+    rating: account?.rating,
+    userId: account?.id,
   });
+  console.log('Game started with name:', payload.name, ', color:', payload.color, ', room:', room.name);
+}
+
+function setupRoutes(account: AuthUser | null): void {
+  registerRoute('/', () => {
+    showLobby(account);
+    return () => hideLobby();
+  });
+
+  registerRoute('/editor', () => {
+    showMapEditor();
+    return () => hideMapEditor();
+  });
+
+  registerRoute('/leaderboard', () => {
+    showLeaderboard(account);
+    return () => hideLeaderboard();
+  });
+
+  registerRoute('/room/:code', ({ code }) => {
+    const generation = currentGeneration();
+    let joinedRoom: RoomSummary | null = null;
+
+    socket.emit('lobby:unsubscribe');
+    socket.emit('lobby:join', { code }, (result) => {
+      if (currentGeneration() !== generation) return; // navigated away while this was in flight
+
+      if (!result.ok) {
+        showToast(result.error);
+        navigate('/', { replace: true });
+        return;
+      }
+
+      joinedRoom = result.room;
+      showRoster(result.room);
+      showChat();
+      showMenu(account, result.room, (payload) => startMatch(payload, result.room, account));
+    });
+
+    return () => {
+      if (joinedRoom) {
+        socket.emit('room:leave');
+      }
+      hideRoster();
+      hideChat();
+      hideMenu();
+      view = null;
+      lastState = null;
+      root.replaceChildren();
+    };
+  });
+
+  startRouter();
+}
+
+initAuth((account) => {
+  setupRoutes(account);
 });
 
 socket.on('room:kicked', () => {
-  sessionStorage.setItem('kickedNotice', '1');
-  location.reload();
+  showToast('You were removed from this room by the host.');
+  navigate('/', { replace: true });
 });
 
 socket.on('player id', (id) => {

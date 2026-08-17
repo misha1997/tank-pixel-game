@@ -149,6 +149,10 @@ io.on('connection', (socket) => {
     socketRooms.get(socket.id)?.restart(socket.id);
   });
 
+  socket.on('room:leave', () => {
+    leaveCurrentRoom(socket.id);
+  });
+
   socket.on('disconnect', () => {
     console.log('Player disconnected:', socket.id);
     leaveCurrentRoom(socket.id);

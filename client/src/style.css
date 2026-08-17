@@ -566,6 +566,26 @@ canvas {
     opacity: 0.8;
 }
 
+.roster-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.roster-header label {
+    margin-bottom: 0;
+}
+
+.roster-header a {
+    color: #ff8080;
+    font-size: 12px;
+    font-family: Arial, sans-serif;
+    cursor: pointer;
+    text-decoration: underline;
+    white-space: nowrap;
+}
+
 .roster-row {
     display: flex;
     align-items: center;
