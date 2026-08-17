@@ -1,24 +1,31 @@
-const state = require('../config/state');
-const constants = require('../config/constants');
-const helpers = require('../utils/helpers');
-const bulletModule = require('../game/bullet');
-const playerModule = require('../game/player');
+import type { Server } from 'socket.io';
+import { BULLET_COOLDOWN, bulletDirections, size } from '@tank/shared';
+import type { BulletState, ClientToServerEvents, PlayerState, ServerToClientEvents, TankFacing } from '@tank/shared';
+import { state } from '../config/state.js';
+import type { BotMemory } from '../config/state.js';
+import * as helpers from '../utils/helpers.js';
+import { createBullet, checkWallCollision } from '../game/bullet.js';
 
-let io;
+let io: Server<ClientToServerEvents, ServerToClientEvents> | null = null;
 
-function init(socketIo) {
+export function init(socketIo: Server<ClientToServerEvents, ServerToClientEvents>): void {
   io = socketIo;
 }
 
+interface Move {
+  dx: number;
+  dy: number;
+  pos: TankFacing;
+}
+
 // Coop enemy AI
-function coopEnemyAI(botId) {
+export function coopEnemyAI(botId: string): void {
   const bot = state.players[botId];
   const memory = state.botMemory[botId];
   if (!bot || !bot.status || !memory) return;
 
   const now = Date.now();
 
-  // Update position memory
   if (!memory.positions) memory.positions = [];
   if (now - (memory.lastPosUpdate || 0) > 500) {
     memory.positions.push({ x: bot.x, y: bot.y, time: now });
@@ -26,7 +33,6 @@ function coopEnemyAI(botId) {
     memory.lastPosUpdate = now;
   }
 
-  // Check if stuck
   if (isStuck(memory)) {
     memory.stuckCounter = (memory.stuckCounter || 0) + 1;
     if (memory.stuckCounter > 3) {
@@ -52,12 +58,14 @@ function coopEnemyAI(botId) {
   // 2. PRIORITY: Attack players if close and vulnerable
   const playerThreat = findBestPlayerTarget(bot);
   if (playerThreat && playerThreat.distance <= 6) {
-    if (canShootTarget(bot, playerThreat.player) &&
-        now - bot.lastShot > constants.BULLET_COOLDOWN &&
-        now > bot.respawnShootingCooldown) {
+    if (
+      canShootTarget(bot, playerThreat.player) &&
+      now - bot.lastShot > BULLET_COOLDOWN &&
+      now > bot.respawnShootingCooldown
+    ) {
       bot.position = playerThreat.position;
       bot.lastShot = now;
-      bulletModule.createBullet(botId);
+      createBullet(botId);
       memory.targetPlayer = playerThreat.playerId;
       return;
     }
@@ -74,11 +82,11 @@ function coopEnemyAI(botId) {
   // 3. PRIORITY: Attack base
   const attackPos = findBestAttackPosition(bot, botId);
 
-  if (attackPos.canShoot) {
+  if (attackPos.canShoot && attackPos.position) {
     bot.position = attackPos.position;
-    if (now - bot.lastShot > constants.BULLET_COOLDOWN && now > bot.respawnShootingCooldown) {
+    if (now - bot.lastShot > BULLET_COOLDOWN && now > bot.respawnShootingCooldown) {
       bot.lastShot = now;
-      bulletModule.createBullet(botId);
+      createBullet(botId);
     }
     return;
   }
@@ -95,57 +103,24 @@ function coopEnemyAI(botId) {
   }
 
   // 5. Destroy obstacles
-  if (now - bot.lastShot > constants.BULLET_COOLDOWN && now > bot.respawnShootingCooldown) {
+  if (now - bot.lastShot > BULLET_COOLDOWN && now > bot.respawnShootingCooldown) {
     const obstacle = findBestObstacleToShoot(bot);
     if (obstacle) {
       bot.position = obstacle.position;
       bot.lastShot = now;
-      bulletModule.createBullet(botId);
+      createBullet(botId);
       return;
     }
   }
 
   // 6. Patrol if nothing to do
-  const patrolMove = getPatrolMove(bot, memory);
+  const patrolMove = getPatrolMove(bot);
   if (patrolMove) {
     tryMove(botId, patrolMove.dx, patrolMove.dy, patrolMove.pos);
   }
 }
 
-// Find player in sight
-function findPlayerInSight(bot) {
-  const directions = ['top', 'bottom', 'left', 'right'];
-
-  for (const dir of directions) {
-    const bulletConfig = constants.bulletDirections[dir];
-    if (!bulletConfig) continue;
-
-    let checkX = bot.x + bulletConfig.offsetX;
-    let checkY = bot.y + bulletConfig.offsetY;
-
-    for (let i = 0; i < 10; i++) {
-      checkX += bulletConfig.dx;
-      checkY += bulletConfig.dy;
-
-      for (const playerId in state.players) {
-        const player = state.players[playerId];
-        if (player && player.status && !player.isBot &&
-            checkX >= player.x && checkX < player.x + 3 &&
-            checkY >= player.y && checkY < player.y + 3) {
-          return { position: dir };
-        }
-      }
-
-      for (const wall of state.walls) {
-        if (wall.x === checkX && wall.y === checkY) break;
-      }
-    }
-  }
-  return null;
-}
-
-// Check if stuck
-function isStuck(memory) {
+export function isStuck(memory: BotMemory): boolean {
   if (!memory || !memory.positions || memory.positions.length < 4) return false;
   const recent = memory.positions.slice(-4);
   const first = recent[0];
@@ -157,34 +132,33 @@ function isStuck(memory) {
   return true;
 }
 
-// Get random valid move
-function getRandomValidMove(bot) {
-  const moves = [
+export function getRandomValidMove(bot: PlayerState): Move | null {
+  const moves: Move[] = [
     { dx: 0, dy: -1, pos: 'top' },
     { dx: 0, dy: 1, pos: 'bottom' },
     { dx: -1, dy: 0, pos: 'left' },
-    { dx: 1, dy: 0, pos: 'right' }
+    { dx: 1, dy: 0, pos: 'right' },
   ];
   const shuffled = moves.sort(() => Math.random() - 0.5);
   for (const move of shuffled) {
     const newX = bot.x + move.dx;
     const newY = bot.y + move.dy;
-    if (newX >= 0 && newX < constants.size.col - 3 &&
-        newY >= 0 && newY < constants.size.row - 3 &&
-        !bulletModule.checkWallCollision(newX, newY, move.pos)) {
+    if (
+      newX >= 0 && newX < size.col - 3 &&
+      newY >= 0 && newY < size.row - 3 &&
+      !checkWallCollision(newX, newY, move.pos)
+    ) {
       return move;
     }
   }
   return null;
 }
 
-// Should dodge bullet
-function shouldDodgeBullet(bot) {
-  const now = Date.now();
-  let threat = null;
+export function shouldDodgeBullet(bot: PlayerState): Move | null {
+  let threat: BulletState | null = null;
   let minDist = Infinity;
 
-  for (const [bulletId, bullet] of state.activeBullets) {
+  for (const [, bullet] of state.activeBullets) {
     if (!bullet.active) continue;
     if (bullet.ownerId && state.players[bullet.ownerId]?.isCoopEnemy) continue;
 
@@ -199,31 +173,35 @@ function shouldDodgeBullet(bot) {
 
   if (!threat) return null;
 
-  const moves = [
+  const moves: Move[] = [
     { dx: 1, dy: 0, pos: 'left' },
     { dx: -1, dy: 0, pos: 'right' },
     { dx: 0, dy: 1, pos: 'top' },
-    { dx: 0, dy: -1, pos: 'bottom' }
+    { dx: 0, dy: -1, pos: 'bottom' },
   ];
 
   for (const move of moves) {
     const newX = bot.x + move.dx;
     const newY = bot.y + move.dy;
-    if (newX >= 0 && newX < constants.size.col - 3 &&
-        newY >= 0 && newY < constants.size.row - 3 &&
-        !bulletModule.checkWallCollision(newX, newY, move.pos) &&
-        !wouldBeHit({ x: newX, y: newY }, threat)) {
+    if (
+      newX >= 0 && newX < size.col - 3 &&
+      newY >= 0 && newY < size.row - 3 &&
+      !checkWallCollision(newX, newY, move.pos) &&
+      !wouldBeHit({ x: newX, y: newY }, threat)
+    ) {
       return move;
     }
   }
   return null;
 }
 
-// Find best player target
-function findBestPlayerTarget(bot) {
-  let bestTarget = null;
+export function findBestPlayerTarget(
+  bot: PlayerState,
+): { player: PlayerState; playerId: string; distance: number; position: TankFacing } | null {
+  let bestTarget: PlayerState | null = null;
+  let bestTargetId: string | null = null;
   let minDistance = Infinity;
-  let bestPosition = null;
+  let bestPosition: TankFacing | null = null;
 
   for (const playerId in state.players) {
     const player = state.players[playerId];
@@ -239,24 +217,28 @@ function findBestPlayerTarget(bot) {
       if (shootPos) {
         minDistance = dist;
         bestTarget = player;
+        bestTargetId = playerId;
         bestPosition = shootPos;
       }
     }
   }
 
-  return bestTarget ? { player: bestTarget, playerId: bestTarget.id || Object.keys(state.players).find(k => state.players[k] === bestTarget), distance: minDistance, position: bestPosition } : null;
+  return bestTarget && bestTargetId && bestPosition
+    ? { player: bestTarget, playerId: bestTargetId, distance: minDistance, position: bestPosition }
+    : null;
 }
 
-// Can shoot target
-function canShootTarget(bot, target) {
+export function canShootTarget(bot: PlayerState, target: PlayerState): TankFacing | null {
   return canShootTargetFrom(bot, target);
 }
 
-// Can shoot target from position
-function canShootTargetFrom(bot, target) {
-  const directions = ['top', 'bottom', 'left', 'right'];
+export function canShootTargetFrom(
+  bot: PlayerState,
+  target: { x: number; y: number },
+): TankFacing | null {
+  const directions: TankFacing[] = ['top', 'bottom', 'left', 'right'];
   for (const dir of directions) {
-    const bulletConfig = constants.bulletDirections[dir];
+    const bulletConfig = bulletDirections[dir];
     if (!bulletConfig) continue;
 
     let checkX = bot.x + bulletConfig.offsetX;
@@ -266,8 +248,10 @@ function canShootTargetFrom(bot, target) {
       checkX += bulletConfig.dx;
       checkY += bulletConfig.dy;
 
-      if (target.x <= checkX && checkX < target.x + 3 &&
-          target.y <= checkY && checkY < target.y + 3) {
+      if (
+        target.x <= checkX && checkX < target.x + 3 &&
+        target.y <= checkY && checkY < target.y + 3
+      ) {
         return dir;
       }
 
@@ -279,12 +263,11 @@ function canShootTargetFrom(bot, target) {
   return null;
 }
 
-// Calculate retreat
-function calculateRetreat(bot, player) {
+export function calculateRetreat(bot: PlayerState, player: PlayerState): Move | null {
   const dx = bot.x - player.x;
   const dy = bot.y - player.y;
 
-  const moves = [];
+  const moves: Move[] = [];
   if (Math.abs(dx) > Math.abs(dy)) {
     moves.push({ dx: dx > 0 ? 1 : -1, dy: 0, pos: dx > 0 ? 'left' : 'right' });
     moves.push({ dx: 0, dy: dy > 0 ? 1 : -1, pos: dy > 0 ? 'top' : 'bottom' });
@@ -296,17 +279,18 @@ function calculateRetreat(bot, player) {
   for (const move of moves) {
     const newX = bot.x + move.dx;
     const newY = bot.y + move.dy;
-    if (newX >= 0 && newX < constants.size.col - 3 &&
-        newY >= 0 && newY < constants.size.row - 3 &&
-        !bulletModule.checkWallCollision(newX, newY, move.pos)) {
+    if (
+      newX >= 0 && newX < size.col - 3 &&
+      newY >= 0 && newY < size.row - 3 &&
+      !checkWallCollision(newX, newY, move.pos)
+    ) {
       return move;
     }
   }
   return null;
 }
 
-// Check collision with other bots
-function isCollidingWithOtherBots(bot, botId, move) {
+export function isCollidingWithOtherBots(bot: PlayerState, botId: string, move: Move): boolean {
   const newX = bot.x + move.dx;
   const newY = bot.y + move.dy;
 
@@ -321,12 +305,11 @@ function isCollidingWithOtherBots(bot, botId, move) {
   return false;
 }
 
-// Calculate smart path
-function calculateSmartPath(bot, targetX, targetY) {
+export function calculateSmartPath(bot: PlayerState, targetX: number, targetY: number): Move | null {
   const dx = Math.sign(targetX - bot.x);
   const dy = Math.sign(targetY - bot.y);
 
-  const moves = [];
+  const moves: Move[] = [];
   if (Math.abs(targetX - bot.x) > Math.abs(targetY - bot.y)) {
     if (dx !== 0) moves.push({ dx, dy: 0, pos: dx > 0 ? 'left' : 'right' });
     if (dy !== 0) moves.push({ dx: 0, dy, pos: dy > 0 ? 'bottom' : 'top' });
@@ -338,22 +321,23 @@ function calculateSmartPath(bot, targetX, targetY) {
   for (const move of moves) {
     const newX = bot.x + move.dx;
     const newY = bot.y + move.dy;
-    if (newX >= 0 && newX < constants.size.col - 3 &&
-        newY >= 0 && newY < constants.size.row - 3 &&
-        !bulletModule.checkWallCollision(newX, newY, move.pos)) {
+    if (
+      newX >= 0 && newX < size.col - 3 &&
+      newY >= 0 && newY < size.row - 3 &&
+      !checkWallCollision(newX, newY, move.pos)
+    ) {
       return move;
     }
   }
   return null;
 }
 
-// Find best obstacle to shoot
-function findBestObstacleToShoot(bot) {
+export function findBestObstacleToShoot(bot: PlayerState): { position: TankFacing } | null {
   for (const brick of state.bricks) {
     if (brick.health > 0) {
       const dist = Math.abs(bot.x - brick.x) + Math.abs(bot.y - brick.y);
       if (dist <= 5) {
-        const shootPos = canShootTargetFrom(bot, { x: brick.x - 1, y: brick.y - 1, getHitbox: () => ({ x: brick.x, y: brick.y, w: 1, h: 1 }) });
+        const shootPos = canShootTargetFrom(bot, { x: brick.x - 1, y: brick.y - 1 });
         if (shootPos) {
           return { position: shootPos };
         }
@@ -363,23 +347,30 @@ function findBestObstacleToShoot(bot) {
   return null;
 }
 
-// Get patrol move
-function getPatrolMove(bot, memory) {
+export function getPatrolMove(bot: PlayerState): Move | null {
   return getRandomValidMove(bot);
 }
 
+interface AttackPosition {
+  canShoot: boolean;
+  position?: TankFacing;
+  targetX?: number;
+  targetY?: number;
+  targetDir?: TankFacing;
+}
+
 // Find best attack position with bot distribution
-function findBestAttackPosition(bot, botId) {
+export function findBestAttackPosition(bot: PlayerState, botId: string): AttackPosition {
   const baseCenterX = state.base.x + 1;
   const baseCenterY = state.base.y + 1;
 
-  const attackPositions = [
+  const attackPositions: { x: number; y: number; pos: 'left' | 'right' | 'top'; dir: TankFacing }[] = [
     { x: state.base.x - 4, y: baseCenterY, pos: 'left', dir: 'right' },
     { x: state.base.x + 6, y: baseCenterY, pos: 'right', dir: 'left' },
-    { x: baseCenterX, y: state.base.y - 4, pos: 'top', dir: 'bottom' }
+    { x: baseCenterX, y: state.base.y - 4, pos: 'top', dir: 'bottom' },
   ];
 
-  const positionCounts = { left: 0, right: 0, top: 0 };
+  const positionCounts: Record<'left' | 'right' | 'top', number> = { left: 0, right: 0, top: 0 };
   for (const otherId in state.botMemory) {
     if (otherId === botId) continue;
     const otherMemory = state.botMemory[otherId];
@@ -389,11 +380,11 @@ function findBestAttackPosition(bot, botId) {
   }
 
   const availablePositions = attackPositions
-    .filter(pos => helpers.hasLineOfSightToBase(pos.x, pos.y, pos.dir))
-    .map(pos => ({
+    .filter((pos) => helpers.hasLineOfSightToBase(pos.x, pos.y, pos.dir))
+    .map((pos) => ({
       ...pos,
       distance: Math.abs(bot.x - pos.x) + Math.abs(bot.y - pos.y),
-      botsTargeting: positionCounts[pos.pos]
+      botsTargeting: positionCounts[pos.pos],
     }))
     .sort((a, b) => {
       if (a.botsTargeting !== b.botsTargeting) {
@@ -427,7 +418,7 @@ function findBestAttackPosition(bot, botId) {
   }
 
   if (bestPos) {
-    const botIndex = parseInt(botId.split('_')[1]) || 0;
+    const botIndex = parseInt(botId.split('_')[1], 10) || 0;
     const offsetX = (botIndex % 3) - 1;
     const offsetY = Math.floor(botIndex / 3) % 3 - 1;
 
@@ -435,41 +426,43 @@ function findBestAttackPosition(bot, botId) {
       canShoot: false,
       targetX: bestPos.x + offsetX,
       targetY: bestPos.y + offsetY,
-      targetDir: bestPos.dir
+      targetDir: bestPos.dir,
     };
   }
 
   return { canShoot: false, targetX: state.base.x - 3, targetY: baseCenterY };
 }
 
-// Is heading towards
-function isHeadingTowards(bullet, bot) {
+export function isHeadingTowards(bullet: { x: number; y: number; dx: number; dy: number }, bot: PlayerState): boolean {
   const dx = bot.x - bullet.x;
   const dy = bot.y - bullet.y;
-  return (bullet.dx !== 0 && Math.sign(dx) === Math.sign(bullet.dx)) ||
-         (bullet.dy !== 0 && Math.sign(dy) === Math.sign(bullet.dy));
+  return (
+    (bullet.dx !== 0 && Math.sign(dx) === Math.sign(bullet.dx)) ||
+    (bullet.dy !== 0 && Math.sign(dy) === Math.sign(bullet.dy))
+  );
 }
 
-// Would be hit
-function wouldBeHit(position, bullet) {
+export function wouldBeHit(
+  position: { x: number; y: number },
+  bullet: { x: number; y: number; dx: number; dy: number },
+): boolean {
   const futureX = position.x + bullet.dx;
   const futureY = position.y + bullet.dy;
   return futureX === bullet.x && futureY === bullet.y;
 }
 
-// Try move
-function tryMove(botId, dx, dy, position) {
+export function tryMove(botId: string, dx: number, dy: number, position: TankFacing): boolean {
   const bot = state.players[botId];
   if (!bot) return false;
 
   const newX = bot.x + dx;
   const newY = bot.y + dy;
 
-  if (newX < 0 || newX >= constants.size.col - 3 || newY < 0 || newY >= constants.size.row - 3) {
+  if (newX < 0 || newX >= size.col - 3 || newY < 0 || newY >= size.row - 3) {
     return false;
   }
 
-  if (bulletModule.checkWallCollision(newX, newY, position)) {
+  if (checkWallCollision(newX, newY, position)) {
     return false;
   }
 
@@ -478,23 +471,3 @@ function tryMove(botId, dx, dy, position) {
   bot.position = position;
   return true;
 }
-
-module.exports = {
-  init,
-  coopEnemyAI,
-  findPlayerInSight,
-  isStuck,
-  getRandomValidMove,
-  shouldDodgeBullet,
-  findBestPlayerTarget,
-  canShootTarget,
-  calculateRetreat,
-  isCollidingWithOtherBots,
-  calculateSmartPath,
-  findBestObstacleToShoot,
-  getPatrolMove,
-  findBestAttackPosition,
-  isHeadingTowards,
-  wouldBeHit,
-  tryMove,
-};

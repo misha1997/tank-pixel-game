@@ -1,0 +1,55 @@
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pixel Tanks Battle</title>
+  <link href="/favicon.ico" rel="icon" type="image/png">
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+
+<body>
+  <!-- Приветственное меню -->
+  <div id="menu-overlay">
+    <div class="menu-container">
+      <div class="menu-title">TANK BATTLE</div>
+      <div class="menu-subtitle">Pixel War Arena</div>
+      <div class="input-group">
+        <label for="player-name">Enter Your Callsign:</label>
+        <input type="text" id="player-name" maxlength="15" placeholder="Warrior" autocomplete="off">
+      </div>
+      <div class="color-selection">
+        <label>Choose Your Tank Color:</label>
+        <div class="color-palette">
+          <div class="color-option" data-color="#ffffff" style="background-color: #ffffff;" title="White"></div>
+          <div class="color-option" data-color="#04847c" style="background-color: #04847c;" title="Teal"></div>
+          <div class="color-option" data-color="#c20000" style="background-color: #c20000;" title="Red"></div>
+          <div class="color-option" data-color="#007f9b" style="background-color: #007f9b;" title="Blue"></div>
+          <div class="color-option" data-color="#ab8f00" style="background-color: #ab8f00;" title="Yellow"></div>
+          <div class="color-option" data-color="#006b44" style="background-color: #006b44;" title="Mint"></div>
+          <div class="color-option" data-color="#FF8B94" style="background-color: #FF8B94;" title="Pink"></div>
+          <div class="color-option" data-color="#3100ab" style="background-color: #3100ab;" title="Purple"></div>
+        </div>
+      </div>
+
+      <div class="mode-selection">
+        <label>Select Game Mode:</label>
+        <div class="mode-buttons">
+          <button class="mode-btn" data-mode="pvp">PvP Arena</button>
+          <button class="mode-btn" data-mode="coop">Co-op Defense</button>
+        </div>
+      </div>
+
+      <button class="btn-start" id="btn-start" disabled>START BATTLE</button>
+    </div>
+  </div>
+
+  <!-- Игровой контейнер -->
+  <div class="wrapper">
+    <div id="root"></div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
+</html>

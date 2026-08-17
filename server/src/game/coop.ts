@@ -1,19 +1,18 @@
-const { v4: uuidv4 } = require('uuid');
-const state = require('../config/state');
-const constants = require('../config/constants');
-const helpers = require('../utils/helpers');
-const mapModule = require('./map');
-const playerModule = require('./player');
-const botModule = require('../ai/bot');
+import { v4 as uuidv4 } from 'uuid';
+import type { Server } from 'socket.io';
+import { BOT_UPDATE_INTERVAL, MAX_COOP_BOTS } from '@tank/shared';
+import type { ClientToServerEvents, ServerToClientEvents } from '@tank/shared';
+import { state } from '../config/state.js';
+import * as helpers from '../utils/helpers.js';
+import { coopEnemyAI } from '../ai/bot.js';
 
-let io;
+let io: Server<ClientToServerEvents, ServerToClientEvents> | null = null;
 
-function init(socketIo) {
+export function init(socketIo: Server<ClientToServerEvents, ServerToClientEvents>): void {
   io = socketIo;
 }
 
-// Start coop wave
-function startCoopWave() {
+export function startCoopWave(): void {
   state.enemiesToSpawn = 5 + state.coopWave * 2;
   state.totalEnemiesInWave = state.enemiesToSpawn;
 
@@ -22,7 +21,7 @@ function startCoopWave() {
   }
 
   state.waveSpawnInterval = setInterval(() => {
-    if (state.gameState !== 'playing' || state.enemiesToSpawn <= 0 || state.coopBotCount >= constants.MAX_COOP_BOTS) {
+    if (state.gameState !== 'playing' || state.enemiesToSpawn <= 0 || state.coopBotCount >= MAX_COOP_BOTS) {
       if (state.enemiesToSpawn <= 0 && state.coopBotCount === 0) {
         state.coopWave++;
         setTimeout(() => startCoopWave(), 5000);
@@ -35,16 +34,15 @@ function startCoopWave() {
   }, 3000);
 }
 
-// Spawn coop enemy
-function spawnCoopEnemy() {
+export function spawnCoopEnemy(): void {
   const spawnPoints = [
     { x: 10, y: 4 },
     { x: 39, y: 4 },
     { x: 12, y: 13 },
-    { x: 37, y: 13 }
+    { x: 37, y: 13 },
   ];
 
-  let spawn = null;
+  let spawn: { x: number; y: number } | null = null;
   for (const point of spawnPoints) {
     let inWall = false;
     for (const wall of state.walls) {
@@ -122,7 +120,7 @@ function spawnCoopEnemy() {
     exploding: false,
     explosionEndTime: 0,
     respawnShootingCooldown: Date.now() + 1500,
-    health: 1
+    health: 1,
   };
 
   state.coopBotCount++;
@@ -135,7 +133,7 @@ function spawnCoopEnemy() {
     aggressionLevel: 0.8,
     dangerZones: [],
     lastCollisionAvoidance: 0,
-    target: 'base'
+    target: 'base',
   };
 
   state.botIntervals[botId] = setInterval(() => {
@@ -148,7 +146,7 @@ function spawnCoopEnemy() {
     }
 
     if (state.players[botId].status) {
-      botModule.coopEnemyAI(botId);
+      coopEnemyAI(botId);
     } else {
       clearInterval(state.botIntervals[botId]);
       delete state.botIntervals[botId];
@@ -158,21 +156,19 @@ function spawnCoopEnemy() {
       state.enemiesKilled++;
       checkCoopVictory();
     }
-  }, constants.BOT_UPDATE_INTERVAL);
+  }, BOT_UPDATE_INTERVAL);
 }
 
-// Check coop victory
-function checkCoopVictory() {
+export function checkCoopVictory(): void {
   if (state.enemiesToSpawn === 0 && state.coopBotCount === 0 && state.gameState === 'playing') {
-    io.sockets.emit('wave complete', { wave: state.coopWave });
+    io?.sockets.emit('wave complete', { wave: state.coopWave });
   }
 }
 
-// Check coop defeat
-function checkCoopDefeat() {
+export function checkCoopDefeat(): void {
   if (state.base.health <= 0 && state.gameState === 'playing') {
     state.gameState = 'defeat';
-    io.sockets.emit('game over', { reason: 'base destroyed', wave: state.coopWave, kills: state.enemiesKilled });
+    io?.sockets.emit('game over', { reason: 'base destroyed', wave: state.coopWave, kills: state.enemiesKilled });
 
     if (state.waveSpawnInterval) {
       clearInterval(state.waveSpawnInterval);
@@ -181,8 +177,7 @@ function checkCoopDefeat() {
   }
 }
 
-// Reset game
-function resetGame() {
+export function resetGame(): void {
   state.gameState = 'waiting';
   state.coopWave = 1;
   state.enemiesToSpawn = 0;
@@ -194,7 +189,6 @@ function resetGame() {
     state.waveSpawnInterval = null;
   }
 
-  // Clear all bots
   for (const playerId in state.players) {
     if (state.players[playerId].isBot) {
       if (state.botIntervals[playerId]) {
@@ -206,7 +200,6 @@ function resetGame() {
     }
   }
 
-  // Clear bullets
   for (const bulletId in state.bulletIntervals) {
     clearInterval(state.bulletIntervals[bulletId]);
     delete state.bulletIntervals[bulletId];
@@ -216,12 +209,3 @@ function resetGame() {
   state.base.health = 1;
   state.bricks.length = 0;
 }
-
-module.exports = {
-  init,
-  startCoopWave,
-  spawnCoopEnemy,
-  checkCoopVictory,
-  checkCoopDefeat,
-  resetGame,
-};

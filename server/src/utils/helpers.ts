@@ -1,13 +1,12 @@
-const { BULLET_POOL_SIZE } = require('../config/constants');
-const state = require('../config/state');
+import { BULLET_POOL_SIZE, bulletDirections, size } from '@tank/shared';
+import type { BulletState } from '@tank/shared';
+import { state } from '../config/state.js';
 
-// Random integer from 0 to max-1
-function randomInteger(max) {
+export function randomInteger(max: number): number {
   return Math.floor(Math.random() * max);
 }
 
-// Check if position has a wall
-function hasWallAt(x, y) {
+export function hasWallAt(x: number, y: number): boolean {
   for (const wall of state.walls) {
     if (wall.x === x && wall.y === y) {
       return true;
@@ -16,8 +15,7 @@ function hasWallAt(x, y) {
   return false;
 }
 
-// Check if position has a brick
-function hasBrickAt(x, y) {
+export function hasBrickAt(x: number, y: number): boolean {
   for (const brick of state.bricks) {
     if (brick.x === x && brick.y === y && brick.health > 0) {
       return true;
@@ -26,8 +24,7 @@ function hasBrickAt(x, y) {
   return false;
 }
 
-// Initialize bullet pool
-function initializeBulletPool() {
+export function initializeBulletPool(): void {
   for (let i = 0; i < BULLET_POOL_SIZE; i++) {
     state.bulletPool.push({
       id: null,
@@ -38,13 +35,12 @@ function initializeBulletPool() {
       dx: 0,
       dy: 0,
       ownerId: null,
-      active: false
+      active: false,
     });
   }
 }
 
-// Get bullet from pool
-function getBulletFromPool() {
+export function getBulletFromPool(): BulletState {
   for (const bullet of state.bulletPool) {
     if (!bullet.active) {
       bullet.active = true;
@@ -53,7 +49,7 @@ function getBulletFromPool() {
     }
   }
   // If pool is empty, create new bullet
-  const bullet = {
+  const bullet: BulletState = {
     id: `bullet_${++state.bulletIdCounter}`,
     position: null,
     x: 0,
@@ -62,21 +58,19 @@ function getBulletFromPool() {
     dx: 0,
     dy: 0,
     ownerId: null,
-    active: true
+    active: true,
   };
   state.bulletPool.push(bullet);
   return bullet;
 }
 
-// Return bullet to pool
-function returnBulletToPool(bulletId) {
+export function returnBulletToPool(bulletId: string): void {
   const bullet = state.activeBullets.get(bulletId);
   if (bullet) {
     bullet.active = false;
     bullet.ownerId = null;
     state.activeBullets.delete(bulletId);
 
-    // Clear interval
     if (state.bulletIntervals[bulletId]) {
       clearInterval(state.bulletIntervals[bulletId]);
       delete state.bulletIntervals[bulletId];
@@ -84,18 +78,20 @@ function returnBulletToPool(bulletId) {
   }
 }
 
-// Generate empty playfield
-function generatePlayField() {
-  const { size } = require('../config/constants');
+export function generatePlayField(): void {
   for (let row = 0; row < size.row; row++) {
     state.playField[row] = new Array(size.col).fill(0);
   }
 }
 
-// Check line of sight to base
-function hasLineOfSightToBase(fromX, fromY, direction) {
-  const { bulletDirections } = require('../config/constants');
-  const bulletConfig = bulletDirections[direction === 'bottom' ? 'top' : direction === 'top' ? 'bottom' : direction === 'left' ? 'right' : 'left'];
+export function hasLineOfSightToBase(fromX: number, fromY: number, direction: string): boolean {
+  const opposite: Record<string, keyof typeof bulletDirections> = {
+    bottom: 'top',
+    top: 'bottom',
+    left: 'right',
+    right: 'left',
+  };
+  const bulletConfig = bulletDirections[opposite[direction]];
   if (!bulletConfig) return false;
 
   let checkX = fromX;
@@ -105,13 +101,13 @@ function hasLineOfSightToBase(fromX, fromY, direction) {
     checkX += bulletConfig.dx;
     checkY += bulletConfig.dy;
 
-    // Reached base
-    if (state.base.x <= checkX && checkX < state.base.x + 3 &&
-        state.base.y <= checkY && checkY < state.base.y + 3) {
+    if (
+      state.base.x <= checkX && checkX < state.base.x + 3 &&
+      state.base.y <= checkY && checkY < state.base.y + 3
+    ) {
       return true;
     }
 
-    // Check walls
     for (const wall of state.walls) {
       if (wall.x === checkX && wall.y === checkY) {
         return false;
@@ -121,14 +117,3 @@ function hasLineOfSightToBase(fromX, fromY, direction) {
 
   return false;
 }
-
-module.exports = {
-  randomInteger,
-  hasWallAt,
-  hasBrickAt,
-  initializeBulletPool,
-  getBulletFromPool,
-  returnBulletToPool,
-  generatePlayField,
-  hasLineOfSightToBase,
-};

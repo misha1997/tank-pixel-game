@@ -1,30 +1,31 @@
-const state = require('../config/state');
-const constants = require('../config/constants');
-const helpers = require('../utils/helpers');
-const bulletModule = require('./bullet');
+import type { Server } from 'socket.io';
+import { COLLISION_CHECK_DISTANCE, INVULNERABILITY_TIME, positionPiece, size } from '@tank/shared';
+import type { ClientToServerEvents, PlayerState, ServerToClientEvents, TankFacing } from '@tank/shared';
+import { state } from '../config/state.js';
+import * as helpers from '../utils/helpers.js';
+import { checkWallCollision } from './bullet.js';
 
-let io;
+let io: Server<ClientToServerEvents, ServerToClientEvents> | null = null;
 
-function init(socketIo) {
+export function init(socketIo: Server<ClientToServerEvents, ServerToClientEvents>): void {
   io = socketIo;
 }
 
-// Get safe spawn position
-function getSafeSpawnPosition() {
+const FACINGS: TankFacing[] = ['top', 'left', 'right', 'bottom'];
+
+export function getSafeSpawnPosition(): { x: number; y: number } {
   let attempts = 0;
   const maxAttempts = 50;
-  const positions = ['top', 'left', 'right', 'bottom'];
 
   while (attempts < maxAttempts) {
-    const x = helpers.randomInteger(constants.size.col - 3);
-    const y = helpers.randomInteger(constants.size.row - 3);
+    const x = helpers.randomInteger(size.col - 3);
+    const y = helpers.randomInteger(size.row - 3);
 
     let isSafe = true;
 
-    // Check position not in wall (check all rotations)
     let inWall = false;
-    for (const pos of positions) {
-      if (bulletModule.checkWallCollision(x, y, pos)) {
+    for (const pos of FACINGS) {
+      if (checkWallCollision(x, y, pos)) {
         inWall = true;
         break;
       }
@@ -34,7 +35,6 @@ function getSafeSpawnPosition() {
       continue;
     }
 
-    // Check distance from other players
     for (const playerId in state.players) {
       const player = state.players[playerId];
       if (player.status && Math.abs(player.x - x) < 5 && Math.abs(player.y - y) < 5) {
@@ -49,15 +49,13 @@ function getSafeSpawnPosition() {
     attempts++;
   }
 
-  return { x: helpers.randomInteger(constants.size.col - 3), y: helpers.randomInteger(constants.size.row - 3) };
+  return { x: helpers.randomInteger(size.col - 3), y: helpers.randomInteger(size.row - 3) };
 }
 
-// Move player
-function movePlayer(playerId, dx, dy, position) {
+export function movePlayer(playerId: string, dx: number, dy: number, position: TankFacing): void {
   const player = state.players[playerId];
   if (!player || !player.status) return;
 
-  // Check if player is exploding
   const now = Date.now();
   if (player.exploding && now < player.explosionEndTime) {
     return;
@@ -66,10 +64,9 @@ function movePlayer(playerId, dx, dy, position) {
   const newX = player.x + dx;
   const newY = player.y + dy;
 
-  if (newX < 0 || newX >= constants.size.col - 3 || newY < 0 || newY >= constants.size.row - 3) return;
+  if (newX < 0 || newX >= size.col - 3 || newY < 0 || newY >= size.row - 3) return;
 
-  // Check wall collision
-  if (bulletModule.checkWallCollision(newX, newY, position)) {
+  if (checkWallCollision(newX, newY, position)) {
     return;
   }
 
@@ -79,9 +76,9 @@ function movePlayer(playerId, dx, dy, position) {
     if (collided) {
       boomAnimate(playerId);
       boomAnimate(collidedPlayer);
-      io.sockets.emit('collision explosion', {
+      io?.sockets.emit('collision explosion', {
         x: (player.x + collided.x) / 2,
-        y: (player.y + collided.y) / 2
+        y: (player.y + collided.y) / 2,
       });
     }
   } else {
@@ -91,25 +88,25 @@ function movePlayer(playerId, dx, dy, position) {
   }
 }
 
-// Check player collision
-function checkPlayerCollision(player, newX, newY, newPosition) {
-  const playerPiece = constants.positionPiece[newPosition];
+export function checkPlayerCollision(
+  player: PlayerState,
+  newX: number,
+  newY: number,
+  newPosition: TankFacing,
+): string | null {
+  const playerPiece = positionPiece[newPosition];
   if (!playerPiece) return null;
 
   const now = Date.now();
 
-  // Skip if player is exploding
   if (player.exploding && now < player.explosionEndTime) return null;
 
-  // Quick distance check for all players
   for (const playerId in state.players) {
     const otherPlayer = state.players[playerId];
     if (otherPlayer === player || !otherPlayer.status) continue;
 
-    // In coop mode players don't collide with each other (only with enemies)
     if (state.gameMode === 'coop' && !player.isBot && !otherPlayer.isBot) continue;
 
-    // Skip exploding players
     if (otherPlayer.exploding && now < otherPlayer.explosionEndTime) continue;
 
     const playerInvulnerable = player.invulnerableUntil && now < player.invulnerableUntil;
@@ -117,11 +114,9 @@ function checkPlayerCollision(player, newX, newY, newPosition) {
 
     if (playerInvulnerable || otherInvulnerable) continue;
 
-    // Quick distance check
     const distance = Math.abs(newX - otherPlayer.x) + Math.abs(newY - otherPlayer.y);
-    if (distance > constants.COLLISION_CHECK_DISTANCE) continue;
+    if (distance > COLLISION_CHECK_DISTANCE) continue;
 
-    // Detailed check for close players
     if (checkDetailedCollision(playerPiece, newX, newY, otherPlayer)) {
       return playerId;
     }
@@ -129,9 +124,13 @@ function checkPlayerCollision(player, newX, newY, newPosition) {
   return null;
 }
 
-// Detailed collision check
-function checkDetailedCollision(playerPiece, newX, newY, otherPlayer) {
-  const otherPiece = constants.positionPiece[otherPlayer.position];
+export function checkDetailedCollision(
+  playerPiece: number[][],
+  newX: number,
+  newY: number,
+  otherPlayer: PlayerState,
+): boolean {
+  const otherPiece = positionPiece[otherPlayer.position];
   if (!otherPiece) return false;
 
   for (let y = 0; y < 3; y++) {
@@ -162,8 +161,7 @@ function checkDetailedCollision(playerPiece, newX, newY, otherPlayer) {
   return false;
 }
 
-// Death animation
-function boomAnimate(playerId) {
+export function boomAnimate(playerId: string): void {
   const player = state.players[playerId];
   if (!player || !player.status) return;
 
@@ -173,7 +171,7 @@ function boomAnimate(playerId) {
   player.exploding = true;
   player.explosionEndTime = now + explosionDuration;
 
-  io.sockets.emit('user dead sound');
+  io?.sockets.emit('user dead sound');
 
   player.position = 'boomOne';
   setTimeout(() => {
@@ -186,26 +184,24 @@ function boomAnimate(playerId) {
     if (state.players[playerId]) {
       state.players[playerId].status = false;
       state.players[playerId].exploding = false;
-      io.sockets.emit('user dead', playerId);
+      io?.sockets.emit('user dead', playerId);
     }
   }, explosionDuration);
 }
 
-// Restart player with invulnerability
-function restartPlayer(playerId) {
+export function restartPlayer(playerId: string): void {
   const player = state.players[playerId];
   if (!player) return;
 
-  const positions = ['top', 'left', 'right', 'bottom'];
   const spawnPos = getSafeSpawnPosition();
 
   player.status = true;
   player.x = spawnPos.x;
   player.y = spawnPos.y;
-  player.position = positions[helpers.randomInteger(4)];
+  player.position = FACINGS[helpers.randomInteger(4)];
   player.bullets = {};
   player.lastShot = 0;
-  player.invulnerableUntil = Date.now() + constants.INVULNERABILITY_TIME;
+  player.invulnerableUntil = Date.now() + INVULNERABILITY_TIME;
   player.exploding = false;
   player.explosionEndTime = 0;
   player.respawnShootingCooldown = Date.now() + 2000;
@@ -215,9 +211,8 @@ function restartPlayer(playerId) {
   }
 }
 
-// Apply player to playfield
-function applyPlayerToField(player) {
-  const piece = constants.positionPiece[player.position];
+export function applyPlayerToField(player: PlayerState): void {
+  const piece = positionPiece[player.position];
   if (!piece) return;
 
   for (let y = 0; y < 3; y++) {
@@ -226,7 +221,7 @@ function applyPlayerToField(player) {
         const posX = player.x + x;
         const posY = player.y + y;
 
-        if (posX >= 0 && posX < constants.size.col && posY >= 0 && posY < constants.size.row) {
+        if (posX >= 0 && posX < size.col && posY >= 0 && posY < size.row) {
           state.playField[posY][posX] = 1;
         }
       }
@@ -234,9 +229,8 @@ function applyPlayerToField(player) {
   }
 }
 
-// Check brick collision
-function checkBrickCollision(newX, newY, position) {
-  const playerPiece = constants.positionPiece[position];
+export function checkBrickCollision(newX: number, newY: number, position: TankFacing): boolean {
+  const playerPiece = positionPiece[position];
   if (!playerPiece) return false;
 
   for (let y = 0; y < 3; y++) {
@@ -255,15 +249,3 @@ function checkBrickCollision(newX, newY, position) {
   }
   return false;
 }
-
-module.exports = {
-  init,
-  getSafeSpawnPosition,
-  movePlayer,
-  checkPlayerCollision,
-  checkDetailedCollision,
-  boomAnimate,
-  restartPlayer,
-  applyPlayerToField,
-  checkBrickCollision,
-};

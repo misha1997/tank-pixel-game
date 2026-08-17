@@ -6,44 +6,65 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a multiplayer pixel tank battle game using Socket.io for real-time communication. The game features a 50x30 grid-based arena where players control tanks, shoot at each other, and compete for points. The game includes AI bots with sophisticated behavior including dodging, hunting, and collision avoidance.
 
+The project is being rebuilt in stages from a single-process prototype into a full online game (lobby, rooms, accounts/rating, custom maps, in-battle chat, progressive AI). The staged roadmap lives at `.claude/plans` history / was agreed with the user; check recent git history and commit messages for which stage is currently in progress.
+
+## Workspace layout (npm workspaces monorepo)
+
+```
+/shared     @tank/shared  — TS types shared by server & client (game state, socket events, constants)
+/server     @tank/server  — Express + Socket.io, TypeScript, Prisma (PostgreSQL)
+/client     @tank/client  — Vite + TypeScript, canvas rendering, same pixel-art look as the original
+```
+
+`shared` must be built (`npm run build -w shared`) before `server`/`client` can resolve `@tank/shared` — its package.json `main`/`types` point at `shared/dist`. The root `npm run dev` script does this automatically before starting both dev servers.
+
 ## Commands
 
 ```bash
-# Start the production server (port 5000)
-npm start
+# Install all workspace dependencies (run once, or after adding deps)
+npm install
 
-# Development with auto-restart on changes
+# Dev: builds shared, then runs server (tsx watch, port 5000) and client (vite, port 5173) concurrently
 npm run dev
 
-# PM2 process management (if using PM2)
-npm run pm2:logs    # View game logs
-npm run pm2:monit   # Open PM2 monitoring dashboard
+# Production build (shared -> server -> client)
+npm run build
+npm start          # node server/dist/index.js, serves client/dist as static files
+
+# Local Postgres for Prisma (server/prisma/schema.prisma)
+docker compose up -d
+cd server && npx prisma migrate dev
 ```
+
+In dev, the client runs on Vite's dev server (5173) which proxies `/socket.io` to the server (5000) — see `client/vite.config.ts`. In production the server serves the built client from `client/dist`.
 
 ## Architecture
 
-### Server (server.js)
-- **Express server** serves static files and the main HTML page
-- **Socket.io** handles real-time bidirectional communication
-- **Game loop** runs at 100ms intervals via `setInterval(updateGameState, GAME_UPDATE_INTERVAL)`
-- **Game state** consists of:
-  - `players` object: stores all player/bot data (position, color, rating, invulnerability timers)
-  - `playField` 2D array: 50x30 grid representing the game world
-  - `walls` array: static collision objects
-  - `activeBullets` Map: bullet pool for performance optimization
+### Server (`server/src`)
+- `index.ts` — Express + Socket.io bootstrap, game loop (`setInterval(updateGameState, GAME_UPDATE_INTERVAL)`), socket event wiring
+- `config/state.ts` — currently a **global singleton** game state object (players, playField, walls, bullets, bot memory). This is intentional for now: it is a 1:1 port of the original state module. It becomes per-room state (`GameRoom` class, many instances) once the multi-room architecture stage lands — do not build new features assuming there's only ever one game in the process.
+- `game/` — `map.ts` (wall/brick layout generation), `bullet.ts` (bullet pool, collision, hit detection), `player.ts` (movement, tank-vs-tank collision, respawn), `coop.ts` (wave spawning, victory/defeat)
+- `ai/bot.ts` — shared AI primitives (dodge, hunt, pathing, line-of-sight) used by both PvP and co-op bots
+- `bots/pvpBots.ts` — simpler bot loop used to fill PvP matches
+- `prisma/schema.prisma` — Postgres schema; empty until accounts/maps/match-history land
 
-### Client (static/index.js + static/view.js)
-- **index.js**: Socket.io client, input handling (WASD/arrow keys + space to shoot), game state reception
-- **view.js**: HTML5 Canvas rendering with a two-layer system:
-  - Static background canvas (grid) rendered once
-  - Dynamic foreground canvas for players, bullets, and UI
-  - Right-side panel shows player leaderboard and mini-map
+### Client (`client/src`)
+- `main.ts` — socket.io-client connection, keyboard input (WASD/arrows + space), render loop
+- `menu.ts` — pre-game name/color/mode menu (`#menu-overlay` in `index.html`), calls back into `main.ts` to start the game
+- `view.ts` — `View` class, HTML5 Canvas rendering with a two-layer system: static background canvas (grid) drawn once, dynamic foreground canvas for players/bullets/UI, right-side panel with leaderboard and mini-map
+- `style.css` — original pixel/DS-Digital-Italic look, adapted fullscreen
+- `public/` — static assets served as-is (favicon, font, sounds)
+
+### Shared (`shared/src`)
+- `types.ts` — `PlayerState`, `BulletState`, `WallState`, `BrickState`, `BaseState`, `GameStateSnapshot`, etc.
+- `constants.ts` — grid size, `positionPiece` (3x3 tank sprites per facing), `bulletDirections`, timing constants
+- `events.ts` — `ClientToServerEvents` / `ServerToClientEvents` typed Socket.io event maps
 
 ### Key Game Mechanics
 
 **Tank Movement**: 3x3 pixel grid representations defined in `positionPiece` (top/bottom/left/right orientations)
 
-**Bullets**: 
+**Bullets**:
 - Pool-based allocation for performance (`bulletPool`, `activeBullets`)
 - Speed: 100ms interval updates
 - Cooldown: 200ms between shots
@@ -54,54 +75,29 @@ npm run pm2:monit   # Open PM2 monitoring dashboard
 - 2-second shooting cooldown after respawn (`respawnShootingCooldown`)
 - Collision between tanks causes mutual explosion
 - Death animation cycles through `boomOne`/`boomTwo` frames over 600ms
-- Rating (score) increments on successful hit
+- Rating (score) increments on successful hit — currently an ephemeral per-match counter; persistent account rating lands with the accounts stage
 
-**AI Bots** (`addBot()` function creates 3 bots at startup):
-- State stored in `botMemory` with position history, danger zones, aggression level
-- Behavior cycle: dodge bullets → hunt targets → patrol
-- Bullet evasion uses trajectory prediction (`isHeadingTowards`, `calculateBestEvasion`)
-- Collision avoidance with `isSafeFromCollisions` checks
-- 3-second respawn delay with memory reset
+**AI Bots**:
+- PvP (`addBot()` in `bots/pvpBots.ts`): simple hunt + shoot loop, 3 bots at startup
+- Co-op (`coopEnemyAI()` in `ai/bot.ts`): dodge → attack player → attack base → destroy obstacles → patrol priority chain, with per-bot memory (`botMemory`) for position history, stuck detection, and attack-position distribution across bots
+- Bullet evasion uses trajectory prediction (`isHeadingTowards`, `wouldBeHit`)
 
-**Wall System**: Static barriers defined in `generateWalls()` that block both player movement and bullets
+**Wall System**: Static barriers defined in `game/map.ts` that block both player movement and bullets; bricks (co-op only) are destructible
 
-### Socket Events
+### Socket Events (see `shared/src/events.ts` for exact types)
 
-**Client → Server**:
-- `new player`: Join with name and color
-- `movePieceTop/Left/Right/Bottom`: Directional movement
-- `moveShot`: Fire bullet
-- `restart`: Respawn after death
+**Client → Server**: `new player`, `movePieceTop/Left/Right/Bottom`, `moveShot`, `restart`
 
-**Server → Client**:
-- `player id`: Assign socket ID to player
-- `state`: Full game state broadcast (100ms interval)
-- `user dead`: Player died notification
-- `user dead sound`: Trigger death sound
-- `collision explosion`: Mutual tank collision event
-- `explosion`: Bullet collision event
+**Server → Client**: `player id`, `game mode`, `state` (100ms interval), `user dead`, `user dead sound`, `collision explosion`, `explosion`, `brick destroyed`, `base hit`, `wave complete`, `game over`
 
 ### Input Throttling
-- Input throttled to 100ms (`INPUT_THROTTLE` in index.js)
+- Input throttled to 100ms (`INPUT_THROTTLE` in `client/src/main.ts`)
 - Movement batched and sent every 50ms
 - Shooting sent immediately (separate from movement batching)
-
-### File Structure
-```
-├── server.js              # Main server + game logic
-├── index.html             # Entry point with menu overlay
-├── package.json           # Dependencies: express, socket.io, uuid
-├── static/
-│   ├── index.js           # Client game logic (module)
-│   ├── view.js            # Canvas rendering class
-│   ├── style.css          # Game UI styles
-│   ├── sounds/            # Game audio files
-│   └── font/              # Custom pixel font
-```
 
 ### Performance Optimizations
 - Bullet pooling to reduce GC pressure
 - Background canvas caching for static grid
-- Distance-based collision checks (early exit if > 5 cells apart)
-- Bot AI memory updates throttled to 300ms
+- Distance-based collision checks (early exit if > `COLLISION_CHECK_DISTANCE` cells apart)
+- Bot AI memory updates throttled
 - Input batching to reduce network traffic
