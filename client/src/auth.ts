@@ -13,13 +13,15 @@ export async function logout(): Promise<void> {
 }
 
 export async function initAuth(onReady: (account: AuthUser | null) => void): Promise<void> {
+  const overlay = document.getElementById('auth-overlay') as HTMLElement;
+
   const existing = await fetchCurrentUser();
   if (existing) {
+    overlay.classList.add('hidden');
     onReady(existing);
     return;
   }
 
-  const overlay = document.getElementById('auth-overlay') as HTMLElement;
   const tabButtons = document.querySelectorAll<HTMLButtonElement>('.auth-tab-btn');
   const form = document.getElementById('auth-form') as HTMLFormElement;
   const usernameInput = document.getElementById('auth-username') as HTMLInputElement;
