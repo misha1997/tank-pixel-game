@@ -2,20 +2,27 @@ import type { GameMode, MapDefinition } from '@tank/shared';
 import { prisma } from '../db/prisma.js';
 import { defaultBuiltinMapFor, getBuiltinMap } from './builtins.js';
 
-export async function resolveMapDefinition(mode: GameMode, mapId: string | undefined): Promise<MapDefinition> {
+export interface ResolvedMap {
+  name: string;
+  definition: MapDefinition;
+}
+
+export async function resolveMap(mode: GameMode, mapId: string | undefined): Promise<ResolvedMap> {
   if (!mapId) {
-    return defaultBuiltinMapFor(mode).definition;
+    const fallback = defaultBuiltinMapFor(mode);
+    return { name: fallback.name, definition: fallback.definition };
   }
 
   const builtin = getBuiltinMap(mapId);
   if (builtin) {
-    return builtin.definition;
+    return { name: builtin.name, definition: builtin.definition };
   }
 
   const custom = await prisma.map.findUnique({ where: { id: mapId } });
   if (custom) {
-    return custom.data as unknown as MapDefinition;
+    return { name: custom.name, definition: custom.data as unknown as MapDefinition };
   }
 
-  return defaultBuiltinMapFor(mode).definition;
+  const fallback = defaultBuiltinMapFor(mode);
+  return { name: fallback.name, definition: fallback.definition };
 }

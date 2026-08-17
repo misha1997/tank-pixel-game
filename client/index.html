@@ -86,6 +86,7 @@
           <div id="lobby-error" class="auth-error"></div>
 
           <button type="button" class="btn-guest" id="lobby-editor-btn">Open Map Editor</button>
+          <button type="button" class="btn-guest" id="lobby-leaderboard-btn">View Leaderboard</button>
         </div>
       </div>
     </div>
@@ -116,6 +117,27 @@
         <div id="editor-error" class="auth-error"></div>
       </div>
       <canvas id="editor-canvas"></canvas>
+    </div>
+  </div>
+
+  <!-- Лідерборд -->
+  <div id="leaderboard-overlay" class="hidden">
+    <div class="menu-container lobby-container">
+      <div class="menu-title">TANK BATTLE</div>
+      <div class="menu-subtitle">Leaderboard</div>
+
+      <div class="lobby-columns">
+        <div class="lobby-list-panel">
+          <label>Top Players:</label>
+          <div id="leaderboard-list" class="lobby-room-list"></div>
+        </div>
+        <div class="lobby-side-panel">
+          <label>Your Recent Matches:</label>
+          <div id="leaderboard-history" class="lobby-room-list"></div>
+        </div>
+      </div>
+
+      <button type="button" class="btn-start" id="leaderboard-back-btn">Back to Lobby</button>
     </div>
   </div>
 

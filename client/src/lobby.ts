@@ -2,6 +2,7 @@ import type { AuthUser, BotDifficulty, GameMode, RoomSummary, RoomVisibility } f
 import { socket } from './socket.js';
 import { fetchMaps } from './maps.js';
 import { initMapEditor } from './mapEditor.js';
+import { initLeaderboard } from './leaderboard.js';
 
 export function initLobby(account: AuthUser | null, onRoomChosen: (room: RoomSummary) => void): void {
   const overlay = document.getElementById('lobby-overlay') as HTMLElement;
@@ -19,6 +20,7 @@ export function initLobby(account: AuthUser | null, onRoomChosen: (room: RoomSum
   const joinCodeInput = document.getElementById('lobby-join-code') as HTMLInputElement;
   const errorBox = document.getElementById('lobby-error') as HTMLElement;
   const editorBtn = document.getElementById('lobby-editor-btn') as HTMLButtonElement;
+  const leaderboardBtn = document.getElementById('lobby-leaderboard-btn') as HTMLButtonElement;
 
   accountStatus.textContent = account ? `Playing as ${account.username}` : 'Playing as Guest';
 
@@ -53,6 +55,13 @@ export function initLobby(account: AuthUser | null, onRoomChosen: (room: RoomSum
     initMapEditor(() => {
       overlay.classList.remove('hidden');
       refreshMapOptions();
+    });
+  });
+
+  leaderboardBtn.addEventListener('click', () => {
+    overlay.classList.add('hidden');
+    initLeaderboard(account, () => {
+      overlay.classList.remove('hidden');
     });
   });
 

@@ -35,6 +35,7 @@ export interface PlayerState {
   health?: number;
   lives?: number;
   rating?: number;
+  userId?: string;
 }
 
 export type BotDifficulty = 'easy' | 'normal' | 'hard' | 'adaptive';
@@ -77,6 +78,7 @@ export interface NewPlayerPayload {
   color: string;
   roomId: string;
   rating?: number;
+  userId?: string;
 }
 
 export interface AuthUser {
@@ -162,4 +164,22 @@ export interface ChatMessage {
   text: string;
   timestamp: number;
   system?: boolean;
+}
+
+export interface LeaderboardEntry {
+  id: string;
+  username: string;
+  rating: number;
+}
+
+export interface MatchHistoryEntry {
+  matchId: string;
+  mode: GameMode;
+  mapName: string;
+  durationSec: number;
+  createdAt: string;
+  score: number;
+  ratingBefore: number;
+  ratingAfter: number;
+  won: boolean;
 }

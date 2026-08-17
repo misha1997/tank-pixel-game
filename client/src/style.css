@@ -48,6 +48,7 @@ img.manual {
 /* Приветственное меню / вход */
 #auth-overlay,
 #lobby-overlay,
+#leaderboard-overlay,
 #menu-overlay {
     position: fixed;
     top: 0;
@@ -64,6 +65,7 @@ img.manual {
 
 #auth-overlay.hidden,
 #lobby-overlay.hidden,
+#leaderboard-overlay.hidden,
 #menu-overlay.hidden {
     display: none;
 }
@@ -731,4 +733,18 @@ canvas {
 
 #chat-input::placeholder {
     color: rgba(255, 255, 255, 0.5);
+}
+
+/* Лідерборд */
+.leaderboard-row--me {
+    background: rgba(255, 255, 255, 0.25) !important;
+    border-color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.leaderboard-gain {
+    color: #7ee787;
+}
+
+.leaderboard-loss {
+    color: #ff8080;
 }

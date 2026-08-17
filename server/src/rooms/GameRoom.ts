@@ -23,6 +23,7 @@ import { BotAI } from './BotAI.js';
 import { CoopManager } from './CoopManager.js';
 import { PvpBotManager } from './PvpBotManager.js';
 import { resolveConcreteDifficulty, type ConcreteDifficulty } from './difficulty.js';
+import { settlePvpDeparture } from '../matches/settle.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -41,6 +42,7 @@ export interface GameRoomOptions {
   hostSocketId: string | null;
   isDefault: boolean;
   map: MapDefinition;
+  mapName: string;
   botDifficulty?: BotDifficulty;
   botFillTarget?: number;
 }
@@ -55,6 +57,7 @@ export class GameRoom {
   readonly isDefault: boolean;
   readonly requestedDifficulty: BotDifficulty;
   readonly botFillTarget: number;
+  readonly mapName: string;
 
   readonly state: RoomState;
   readonly map: MapGenerator;
@@ -68,6 +71,7 @@ export class GameRoom {
   private readonly tickInterval: NodeJS.Timeout;
   private readonly chatHistory: ChatMessage[] = [];
   private readonly lastChatAt = new Map<string, number>();
+  private matchStartedAt = 0;
 
   constructor(options: GameRoomOptions, private readonly io: TypedServer) {
     this.id = options.id;
@@ -79,6 +83,7 @@ export class GameRoom {
     this.isDefault = options.isDefault;
     this.requestedDifficulty = options.botDifficulty ?? 'normal';
     this.botFillTarget = Math.max(0, Math.min(MAX_ROOM_PLAYERS, options.botFillTarget ?? DEFAULT_BOT_FILL_TARGET));
+    this.mapName = options.mapName;
 
     this.state = createInitialRoomState(this.mode);
     this.map = new MapGenerator(this.state);
@@ -87,7 +92,15 @@ export class GameRoom {
     );
     this.players = new PlayerManager(this.state, io, this.id, this.bullets);
     this.ai = new BotAI(this.state, this.bullets);
-    this.coop = new CoopManager(this.state, io, this.id, this.ai, () => this.resolveCurrentDifficulty());
+    this.coop = new CoopManager(
+      this.state,
+      io,
+      this.id,
+      this.ai,
+      () => this.resolveCurrentDifficulty(),
+      this.mapName,
+      () => this.getMatchDurationSec(),
+    );
     this.pvpBots = new PvpBotManager(this.state, this.bullets, this.players, this.ai);
 
     resetPlayField(this.state.playField);
@@ -106,6 +119,7 @@ export class GameRoom {
   startMatch(): void {
     if (this.status === 'playing') return;
     this.status = 'playing';
+    this.matchStartedAt = Date.now();
 
     if (this.mode === 'coop') {
       this.coop.startCoopWave();
@@ -114,7 +128,7 @@ export class GameRoom {
     }
   }
 
-  addPlayer(socketId: string, name: string, color: string, rating?: number): void {
+  addPlayer(socketId: string, name: string, color: string, rating?: number, userId?: string): void {
     this.state.players[socketId] = {
       name,
       color,
@@ -131,6 +145,7 @@ export class GameRoom {
       explosionEndTime: 0,
       respawnShootingCooldown: Date.now() + 2000,
       rating,
+      userId,
     };
 
     this.broadcastSystemMessage(`${name} joined the battle`);
@@ -145,6 +160,25 @@ export class GameRoom {
   removePlayer(socketId: string): void {
     const player = this.state.players[socketId];
     if (!player) return;
+
+    if (this.mode === 'pvp' && this.status === 'playing' && !player.isBot && player.userId && typeof player.rating === 'number') {
+      const others = Object.values(this.state.players).filter(
+        (p) => p !== player && !p.isBot && typeof p.rating === 'number',
+      );
+      const opponentAvgRating =
+        others.length > 0 ? others.reduce((sum, p) => sum + (p.rating as number), 0) / others.length : null;
+      const opponentAvgScore = others.length > 0 ? others.reduce((sum, p) => sum + p.score, 0) / others.length : 0;
+
+      void settlePvpDeparture({
+        userId: player.userId,
+        ratingBefore: player.rating,
+        score: player.score,
+        opponentAvgScore,
+        opponentAvgRating,
+        mapName: this.mapName,
+        durationSec: this.getMatchDurationSec(),
+      });
+    }
 
     if (player.bullets) {
       for (const bulletId in player.bullets) {
@@ -220,6 +254,10 @@ export class GameRoom {
     if (this.state.players[socketId]) {
       this.players.restartPlayer(socketId);
     }
+  }
+
+  getMatchDurationSec(): number {
+    return this.matchStartedAt ? Math.round((Date.now() - this.matchStartedAt) / 1000) : 0;
   }
 
   playerCount(): number {

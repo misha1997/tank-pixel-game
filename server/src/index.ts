@@ -8,6 +8,7 @@ import { Server } from 'socket.io';
 import type { ClientToServerEvents, ServerToClientEvents } from '@tank/shared';
 import { authRouter } from './auth/router.js';
 import { mapsRouter } from './maps/router.js';
+import { matchesRouter } from './matches/router.js';
 import { RoomManager, LOBBY_WATCHERS_ROOM } from './rooms/RoomManager.js';
 import type { GameRoom } from './rooms/GameRoom.js';
 
@@ -24,6 +25,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use('/api/auth', authRouter);
 app.use('/api/maps', mapsRouter);
+app.use('/api/matches', matchesRouter);
 
 const clientDist = path.join(__dirname, '../../client/dist');
 app.use(express.static(clientDist));
@@ -109,7 +111,7 @@ io.on('connection', (socket) => {
     roomManager.broadcastLobby();
   });
 
-  socket.on('new player', ({ name, color, roomId, rating }) => {
+  socket.on('new player', ({ name, color, roomId, rating, userId }) => {
     const room = roomManager.get(roomId);
     if (!room) return;
 
@@ -118,7 +120,7 @@ io.on('connection', (socket) => {
     socket.leave(LOBBY_WATCHERS_ROOM);
     socketRooms.set(socket.id, room);
     socket.join(room.id);
-    room.addPlayer(socket.id, name, color, rating);
+    room.addPlayer(socket.id, name, color, rating, userId);
 
     socket.emit('player id', socket.id);
     socket.emit('game mode', { mode: room.mode, wave: room.state.coopWave });

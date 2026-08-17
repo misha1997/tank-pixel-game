@@ -42,7 +42,7 @@ initAuth((account) => {
     initChat();
     initMenu(({ name, color }) => {
       view = new View(root);
-      socket.emit('new player', { name, color, roomId: room.id, rating: account?.rating });
+      socket.emit('new player', { name, color, roomId: room.id, rating: account?.rating, userId: account?.id });
       console.log('Game started with name:', name, ', color:', color, ', room:', room.name);
     }, account, room);
   });

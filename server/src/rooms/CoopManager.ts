@@ -6,6 +6,7 @@ import type { RoomState } from './state.js';
 import { randomInteger } from '../utils/random.js';
 import type { BotAI } from './BotAI.js';
 import { applyWaveScaling, getDifficultyProfile, randomInRange, type ConcreteDifficulty } from './difficulty.js';
+import { settleCoopDefeat } from '../matches/settle.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -16,6 +17,8 @@ export class CoopManager {
     private readonly roomId: string,
     private readonly ai: BotAI,
     private readonly getDifficulty: () => ConcreteDifficulty,
+    private readonly mapName: string,
+    private readonly getDurationSec: () => number,
   ) {}
 
   startCoopWave(): void {
@@ -184,6 +187,17 @@ export class CoopManager {
         clearInterval(state.waveSpawnInterval);
         state.waveSpawnInterval = null;
       }
+
+      const participants = Object.values(state.players)
+        .filter((p) => !p.isBot && p.userId && typeof p.rating === 'number')
+        .map((p) => ({ userId: p.userId as string, ratingBefore: p.rating as number, score: p.score }));
+
+      void settleCoopDefeat({
+        mapName: this.mapName,
+        durationSec: this.getDurationSec(),
+        wave: state.coopWave,
+        participants,
+      });
     }
   }
 }
