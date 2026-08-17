@@ -45,7 +45,8 @@ img.manual {
     left: 10px;
 }
 
-/* Приветственное меню */
+/* Приветственное меню / вход */
+#auth-overlay,
 #menu-overlay {
     position: fixed;
     top: 0;
@@ -60,8 +61,77 @@ img.manual {
     animation: fadeIn 0.5s ease;
 }
 
+#auth-overlay.hidden,
 #menu-overlay.hidden {
     display: none;
+}
+
+.auth-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 30px;
+}
+
+.auth-tab-btn {
+    flex: 1;
+    padding: 12px 20px;
+    font-size: 16px;
+    font-family: Arial, sans-serif;
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.auth-tab-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.auth-tab-btn.selected {
+    background: #7b8566;
+    border-color: #fff;
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.5);
+}
+
+.auth-error {
+    min-height: 20px;
+    color: #ff6b6b;
+    font-size: 14px;
+    text-align: left;
+    margin: -15px 0 20px;
+    font-family: Arial, sans-serif;
+}
+
+.btn-guest {
+    display: block;
+    width: 100%;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.8);
+    border: none;
+    padding: 12px 0 0;
+    font-size: 15px;
+    font-family: Arial, sans-serif;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.btn-guest:hover {
+    color: #fff;
+}
+
+.account-status {
+    color: #fff;
+    font-size: 15px;
+    font-family: Arial, sans-serif;
+    margin-bottom: 25px;
+    min-height: 20px;
+}
+
+.account-status a {
+    color: #fff;
+    cursor: pointer;
+    text-decoration: underline;
 }
 
 .menu-container {

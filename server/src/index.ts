@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
+import cookieParser from 'cookie-parser';
 import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -14,6 +15,7 @@ import * as playerModule from './game/player.js';
 import * as coopModule from './game/coop.js';
 import * as botModule from './ai/bot.js';
 import { addPvPBots } from './bots/pvpBots.js';
+import { authRouter } from './auth/router.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -23,6 +25,10 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(server);
 
 const port = Number(process.env.PORT) || 5000;
 app.set('port', port);
+
+app.use(express.json());
+app.use(cookieParser());
+app.use('/api/auth', authRouter);
 
 const clientDist = path.join(__dirname, '../../client/dist');
 app.use(express.static(clientDist));
@@ -130,7 +136,7 @@ io.on('connection', (socket) => {
       y: 3,
       position: 'bottom',
       bullets: {},
-      rating: 0,
+      score: 0,
       lastShot: 0,
       invulnerableUntil: Date.now() + 2000,
       exploding: false,

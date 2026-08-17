@@ -26,7 +26,7 @@ export interface PlayerState {
   y: number;
   position: TankAnimState;
   bullets: Record<string, BulletState>;
-  rating: number;
+  score: number;
   lastShot: number;
   invulnerableUntil: number;
   exploding: boolean;
@@ -73,4 +73,10 @@ export interface NewPlayerPayload {
   name: string;
   color: string;
   mode: GameMode;
+}
+
+export interface AuthUser {
+  id: string;
+  username: string;
+  rating: number;
 }

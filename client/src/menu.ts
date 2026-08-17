@@ -1,4 +1,5 @@
-import type { GameMode } from '@tank/shared';
+import type { AuthUser, GameMode } from '@tank/shared';
+import { logout } from './auth.js';
 
 export interface StartGamePayload {
   name: string;
@@ -6,17 +7,34 @@ export interface StartGamePayload {
   mode: GameMode;
 }
 
-export function initMenu(onStart: (payload: StartGamePayload) => void): void {
+export function initMenu(onStart: (payload: StartGamePayload) => void, account: AuthUser | null): void {
   const menuOverlay = document.getElementById('menu-overlay') as HTMLElement;
   const playerNameInput = document.getElementById('player-name') as HTMLInputElement;
   const btnStart = document.getElementById('btn-start') as HTMLButtonElement;
   const colorOptions = document.querySelectorAll<HTMLElement>('.color-option');
   const modeButtons = document.querySelectorAll<HTMLButtonElement>('.mode-btn');
+  const accountStatus = document.getElementById('account-status') as HTMLElement;
 
-  const savedName = localStorage.getItem('playerName') || '';
+  menuOverlay.classList.remove('hidden');
+
+  if (account) {
+    playerNameInput.value = account.username;
+    playerNameInput.readOnly = true;
+    accountStatus.textContent = `Logged in as ${account.username} (Rating: ${account.rating}) — `;
+    const logoutLink = document.createElement('a');
+    logoutLink.textContent = 'Log out';
+    logoutLink.addEventListener('click', () => {
+      logout().then(() => location.reload());
+    });
+    accountStatus.appendChild(logoutLink);
+  } else {
+    const savedName = localStorage.getItem('playerName') || '';
+    playerNameInput.value = savedName;
+    playerNameInput.focus();
+    accountStatus.textContent = 'Playing as Guest — progress will not be saved';
+  }
+
   const savedColor = localStorage.getItem('playerColor') || '#00AA00';
-  playerNameInput.value = savedName;
-  playerNameInput.focus();
 
   colorOptions.forEach((option) => {
     if (option.dataset.color === savedColor) {

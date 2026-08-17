@@ -114,7 +114,7 @@ export function spawnCoopEnemy(): void {
     y: spawn.y,
     position: 'bottom',
     bullets: {},
-    rating: 0,
+    score: 0,
     lastShot: 0,
     invulnerableUntil: Date.now() + 1000,
     exploding: false,

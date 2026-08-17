@@ -27,7 +27,7 @@ export function addBot(): void {
     y: spawnPos.y,
     position: FACINGS[helpers.randomInteger(4)],
     bullets: {},
-    rating: 0,
+    score: 0,
     lastShot: 0,
     invulnerableUntil: Date.now() + INVULNERABILITY_TIME,
     exploding: false,

@@ -2,6 +2,7 @@ import { io, type Socket } from 'socket.io-client';
 import type { ClientToServerEvents, GameStateSnapshot, ServerToClientEvents } from '@tank/shared';
 import View from './view.js';
 import { initMenu } from './menu.js';
+import { initAuth } from './auth.js';
 
 const root = document.querySelector<HTMLElement>('#root')!;
 const socket = io() as unknown as Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -19,10 +20,12 @@ let lastState: GameStateSnapshot | null = null;
 const debugMode = window.location.search.includes('debug');
 let renderedFrames = 0;
 
-initMenu(({ name, color, mode }) => {
-  view = new View(root);
-  socket.emit('new player', { name, color, mode });
-  console.log('Game started with name:', name, ', color:', color, ', mode:', mode);
+initAuth((account) => {
+  initMenu(({ name, color, mode }) => {
+    view = new View(root);
+    socket.emit('new player', { name, color, mode });
+    console.log('Game started with name:', name, ', color:', color, ', mode:', mode);
+  }, account);
 });
 
 socket.on('player id', (id) => {

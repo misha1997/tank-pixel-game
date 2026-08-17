@@ -298,7 +298,7 @@ export default class View {
     let playerPosition = 30;
     const playersArray = Object.entries(players);
 
-    playersArray.sort((a, b) => b[1].rating - a[1].rating);
+    playersArray.sort((a, b) => b[1].score - a[1].score);
 
     for (let i = 0; i < playersArray.length; i++) {
       const [playerId, player] = playersArray[i];
@@ -318,7 +318,7 @@ export default class View {
 
       const prefix = isMe ? '► ' : isBot ? '[B] ' : '';
       const status = isDead ? ' [DEAD]' : '';
-      const text = `${i + 1}: ${prefix}${player.name} - ${player.rating}${status}`;
+      const text = `${i + 1}: ${prefix}${player.name} - ${player.score}${status}`;
 
       this.context.fillText(text, uiX + 10, playerPosition);
     }

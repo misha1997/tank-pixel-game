@@ -1,5 +1,4 @@
-// Prisma schema — models land starting with Stage 1 (accounts) and Stage 4 (maps) / Stage 7 (matches).
-// Kept empty on purpose for Stage 0: this only wires up the toolchain (generate/migrate) against Postgres.
+// Stage 4 (maps) and Stage 7 (match history) add more models on top of this.
 
 generator client {
   provider = "prisma-client-js"
@@ -8,4 +7,12 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String
+  rating       Int      @default(1000)
+  createdAt    DateTime @default(now())
 }

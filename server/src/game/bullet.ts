@@ -132,7 +132,7 @@ export function checkBulletHit(bullet: BulletState, shooterId: string): boolean 
 
           if (bullet.x === cellX && bullet.y === cellY) {
             if (target.position !== 'boomOne' && target.position !== 'boomTwo') {
-              state.players[shooterId].rating++;
+              state.players[shooterId].score++;
               boomAnimate(playerId);
               return true;
             }

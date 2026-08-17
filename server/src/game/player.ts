@@ -207,7 +207,7 @@ export function restartPlayer(playerId: string): void {
   player.respawnShootingCooldown = Date.now() + 2000;
 
   if (!player.isBot) {
-    player.rating = 0;
+    player.score = 0;
   }
 }
 
