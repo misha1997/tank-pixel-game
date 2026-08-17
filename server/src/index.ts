@@ -69,14 +69,22 @@ io.on('connection', (socket) => {
     socket.leave(LOBBY_WATCHERS_ROOM);
   });
 
-  socket.on('lobby:create', async ({ name, mode, visibility, mapId }, ack) => {
+  socket.on('lobby:create', async ({ name, mode, visibility, mapId, botDifficulty, botFillTarget }, ack) => {
     const trimmed = name.trim().slice(0, 40);
     if (!trimmed) {
       ack({ ok: false, error: 'Room name is required.' });
       return;
     }
 
-    const room = await roomManager.createRoom({ name: trimmed, mode, visibility, hostSocketId: socket.id, mapId });
+    const room = await roomManager.createRoom({
+      name: trimmed,
+      mode,
+      visibility,
+      hostSocketId: socket.id,
+      mapId,
+      botDifficulty,
+      botFillTarget,
+    });
     ack({ ok: true, room: room.toSummary() });
   });
 
@@ -99,7 +107,7 @@ io.on('connection', (socket) => {
     roomManager.broadcastLobby();
   });
 
-  socket.on('new player', ({ name, color, roomId }) => {
+  socket.on('new player', ({ name, color, roomId, rating }) => {
     const room = roomManager.get(roomId);
     if (!room) return;
 
@@ -108,7 +116,7 @@ io.on('connection', (socket) => {
     socket.leave(LOBBY_WATCHERS_ROOM);
     socketRooms.set(socket.id, room);
     socket.join(room.id);
-    room.addPlayer(socket.id, name, color);
+    room.addPlayer(socket.id, name, color, rating);
 
     socket.emit('player id', socket.id);
     socket.emit('game mode', { mode: room.mode, wave: room.state.coopWave });

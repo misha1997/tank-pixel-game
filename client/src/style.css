@@ -487,6 +487,33 @@ canvas {
     outline: none;
 }
 
+.lobby-bot-fill {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.lobby-bot-fill label {
+    margin: 0;
+    color: #fff;
+    font-size: 14px;
+    font-family: Arial, sans-serif;
+}
+
+.lobby-bot-fill input {
+    width: 60px;
+    padding: 8px;
+    font-size: 14px;
+    font-family: 'DS-Digital-Italic', monospace;
+    background: rgba(255, 255, 255, 0.9);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+.lobby-bot-fill.tool-hidden {
+    display: none;
+}
+
 .lobby-toggle-group {
     display: flex;
     gap: 8px;

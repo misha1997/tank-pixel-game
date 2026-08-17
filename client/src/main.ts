@@ -40,7 +40,7 @@ initAuth((account) => {
     initRoster(room);
     initMenu(({ name, color }) => {
       view = new View(root);
-      socket.emit('new player', { name, color, roomId: room.id });
+      socket.emit('new player', { name, color, roomId: room.id, rating: account?.rating });
       console.log('Game started with name:', name, ', color:', color, ', room:', room.name);
     }, account, room);
   });

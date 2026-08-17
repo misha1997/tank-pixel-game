@@ -53,17 +53,24 @@ export class BotAI {
       memory.stuckCounter = 0;
     }
 
-    // 1. PRIORITY: Dodge player bullets
-    const dodgeMove = this.shouldDodgeBullet(bot);
-    if (dodgeMove && now - (memory.lastDodge || 0) > 300) {
-      this.tryMove(botId, dodgeMove.dx, dodgeMove.dy, dodgeMove.pos);
-      memory.lastDodge = now;
-      return;
+    // 1. PRIORITY: Dodge player bullets — how often a bot even bothers is
+    // difficulty-driven (an "easy" bot mostly eats bullets it could avoid).
+    if (Math.random() < (memory.dodgeChance ?? 0.6)) {
+      const dodgeMove = this.shouldDodgeBullet(bot);
+      if (dodgeMove && now - (memory.lastDodge || 0) > 300) {
+        this.tryMove(botId, dodgeMove.dx, dodgeMove.dy, dodgeMove.pos);
+        memory.lastDodge = now;
+        return;
+      }
     }
 
-    // 2. PRIORITY: Attack players if close and vulnerable
+    // 2. PRIORITY: Attack players if close and vulnerable — more aggressive
+    // bots engage from farther out and retreat less readily.
+    const aggression = memory.aggressionLevel ?? 0.6;
+    const engageRadius = 4 + aggression * 4;
+    const retreatThreshold = 4 * (1 - aggression * 0.5);
     const playerThreat = this.findBestPlayerTarget(bot);
-    if (playerThreat && playerThreat.distance <= 6) {
+    if (playerThreat && playerThreat.distance <= engageRadius) {
       if (
         this.canShootTarget(bot, playerThreat.player) &&
         now - bot.lastShot > BULLET_COOLDOWN &&
@@ -76,7 +83,7 @@ export class BotAI {
         return;
       }
 
-      if (playerThreat.distance < 4) {
+      if (playerThreat.distance < retreatThreshold) {
         const retreat = this.calculateRetreat(bot, playerThreat.player);
         if (retreat) {
           this.tryMove(botId, retreat.dx, retreat.dy, retreat.pos);

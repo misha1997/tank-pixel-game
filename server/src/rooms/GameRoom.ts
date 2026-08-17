@@ -1,6 +1,7 @@
 import type { Server } from 'socket.io';
 import { GAME_UPDATE_INTERVAL, INVULNERABILITY_TIME } from '@tank/shared';
 import type {
+  BotDifficulty,
   ClientToServerEvents,
   GameMode,
   GameStateSnapshot,
@@ -19,10 +20,12 @@ import { PlayerManager } from './PlayerManager.js';
 import { BotAI } from './BotAI.js';
 import { CoopManager } from './CoopManager.js';
 import { PvpBotManager } from './PvpBotManager.js';
+import { resolveConcreteDifficulty, type ConcreteDifficulty } from './difficulty.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
 const MAX_ROOM_PLAYERS = 8;
+const DEFAULT_BOT_FILL_TARGET = 3;
 
 export interface GameRoomOptions {
   id: string;
@@ -33,6 +36,8 @@ export interface GameRoomOptions {
   hostSocketId: string | null;
   isDefault: boolean;
   map: MapDefinition;
+  botDifficulty?: BotDifficulty;
+  botFillTarget?: number;
 }
 
 export class GameRoom {
@@ -43,6 +48,8 @@ export class GameRoom {
   readonly visibility: RoomVisibility;
   readonly hostSocketId: string | null;
   readonly isDefault: boolean;
+  readonly requestedDifficulty: BotDifficulty;
+  readonly botFillTarget: number;
 
   readonly state: RoomState;
   readonly map: MapGenerator;
@@ -63,13 +70,15 @@ export class GameRoom {
     this.visibility = options.visibility;
     this.hostSocketId = options.hostSocketId;
     this.isDefault = options.isDefault;
+    this.requestedDifficulty = options.botDifficulty ?? 'normal';
+    this.botFillTarget = Math.max(0, Math.min(MAX_ROOM_PLAYERS, options.botFillTarget ?? DEFAULT_BOT_FILL_TARGET));
 
     this.state = createInitialRoomState(this.mode);
     this.map = new MapGenerator(this.state);
     this.bullets = new BulletManager(this.state, io, this.id, () => this.players, () => this.coop);
     this.players = new PlayerManager(this.state, io, this.id, this.bullets);
     this.ai = new BotAI(this.state, this.bullets);
-    this.coop = new CoopManager(this.state, io, this.id, this.ai);
+    this.coop = new CoopManager(this.state, io, this.id, this.ai, () => this.resolveCurrentDifficulty());
     this.pvpBots = new PvpBotManager(this.state, this.bullets, this.players, this.ai);
 
     resetPlayField(this.state.playField);
@@ -92,11 +101,11 @@ export class GameRoom {
     if (this.mode === 'coop') {
       this.coop.startCoopWave();
     } else {
-      this.pvpBots.addPvPBots(3);
+      this.maintainBotFill();
     }
   }
 
-  addPlayer(socketId: string, name: string, color: string): void {
+  addPlayer(socketId: string, name: string, color: string, rating?: number): void {
     this.state.players[socketId] = {
       name,
       color,
@@ -112,10 +121,13 @@ export class GameRoom {
       exploding: false,
       explosionEndTime: 0,
       respawnShootingCooldown: Date.now() + 2000,
+      rating,
     };
 
     if (socketId === this.hostSocketId && this.status === 'waiting') {
       this.startMatch();
+    } else if (this.mode === 'pvp' && this.status === 'playing') {
+      this.maintainBotFill();
     }
   }
 
@@ -136,6 +148,42 @@ export class GameRoom {
 
     delete this.state.players[socketId];
     delete this.state.botMemory[socketId];
+
+    if (this.mode === 'pvp' && this.status === 'playing' && !player.isBot) {
+      this.maintainBotFill();
+    }
+  }
+
+  // "Adaptive" bots are re-tuned to whatever the room's current human roster
+  // looks like — this is intentionally recomputed on every spawn, not cached,
+  // so it keeps tracking the room as players come and go.
+  resolveCurrentDifficulty(): ConcreteDifficulty {
+    const ratings = Object.values(this.state.players)
+      .filter((p) => !p.isBot && typeof p.rating === 'number')
+      .map((p) => p.rating as number);
+    const avg = ratings.length > 0 ? ratings.reduce((sum, r) => sum + r, 0) / ratings.length : null;
+    return resolveConcreteDifficulty(this.requestedDifficulty, avg);
+  }
+
+  private maintainBotFill(): void {
+    if (this.mode !== 'pvp') return;
+
+    const players = Object.entries(this.state.players);
+    const humanCount = players.filter(([, p]) => !p.isBot).length;
+    const botIds = players.filter(([, p]) => p.isBot).map(([id]) => id);
+    const total = humanCount + botIds.length;
+
+    if (total < this.botFillTarget) {
+      const difficulty = this.resolveCurrentDifficulty();
+      for (let i = 0; i < this.botFillTarget - total; i++) {
+        this.pvpBots.addBot(difficulty);
+      }
+    } else if (total > this.botFillTarget && botIds.length > 0) {
+      const toRemove = Math.min(botIds.length, total - this.botFillTarget);
+      for (const botId of botIds.slice(0, toRemove)) {
+        this.removePlayer(botId);
+      }
+    }
   }
 
   kick(requestingSocketId: string, targetSocketId: string): boolean {

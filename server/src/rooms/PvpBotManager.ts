@@ -1,10 +1,11 @@
-import { BOT_UPDATE_INTERVAL, BULLET_COOLDOWN, INVULNERABILITY_TIME } from '@tank/shared';
+import { BULLET_COOLDOWN, INVULNERABILITY_TIME } from '@tank/shared';
 import type { PlayerState, TankFacing } from '@tank/shared';
 import type { RoomState } from './state.js';
 import { randomInteger } from '../utils/random.js';
 import type { BulletManager } from './BulletManager.js';
 import type { PlayerManager } from './PlayerManager.js';
 import type { BotAI } from './BotAI.js';
+import { getDifficultyProfile, randomInRange, type ConcreteDifficulty } from './difficulty.js';
 
 const FACINGS: TankFacing[] = ['top', 'left', 'right', 'bottom'];
 
@@ -16,14 +17,15 @@ export class PvpBotManager {
     private readonly ai: BotAI,
   ) {}
 
-  addPvPBots(count = 3): void {
+  addPvPBots(count: number, difficulty: ConcreteDifficulty = 'normal'): void {
     for (let i = 0; i < count; i++) {
-      this.addBot();
+      this.addBot(difficulty);
     }
   }
 
-  addBot(): void {
+  addBot(difficulty: ConcreteDifficulty = 'normal'): void {
     const { state } = this;
+    const profile = getDifficultyProfile(difficulty);
     const botId = 'bot_' + Math.random().toString(36).substring(2, 11);
     const spawnPos = this.players.getSafeSpawnPosition();
 
@@ -49,7 +51,8 @@ export class PvpBotManager {
       stuckCounter: 0,
       lastDodge: 0,
       lastMemoryUpdate: 0,
-      aggressionLevel: 0.5 + Math.random() * 0.3,
+      aggressionLevel: randomInRange(profile.aggressionRange),
+      dodgeChance: profile.dodgeChance,
       dangerZones: [],
       lastCollisionAvoidance: 0,
     };
@@ -80,16 +83,26 @@ export class PvpBotManager {
           }
         }, 3000);
       }
-    }, BOT_UPDATE_INTERVAL);
+    }, profile.updateInterval);
   }
 
   // Simple bot AI for PvP mode
   private botAI(botId: string): void {
     const { state } = this;
     const bot = state.players[botId];
+    const memory = state.botMemory[botId];
     if (!bot || !bot.status) return;
 
     const now = Date.now();
+
+    if (Math.random() < (memory?.dodgeChance ?? 0.6)) {
+      const dodgeMove = this.ai.shouldDodgeBullet(bot);
+      if (dodgeMove && now - (memory?.lastDodge || 0) > 300) {
+        this.ai.tryMove(botId, dodgeMove.dx, dodgeMove.dy, dodgeMove.pos);
+        if (memory) memory.lastDodge = now;
+        return;
+      }
+    }
 
     let target: PlayerState | null = null;
     let minDist = Infinity;

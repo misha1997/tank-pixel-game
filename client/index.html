@@ -63,6 +63,17 @@
               <button type="button" class="mode-btn" data-value="private">Private</button>
             </div>
             <select id="lobby-create-map"></select>
+            <label>Bot Difficulty:</label>
+            <div class="lobby-toggle-group" id="lobby-create-difficulty">
+              <button type="button" class="mode-btn" data-value="easy">Easy</button>
+              <button type="button" class="mode-btn selected" data-value="normal">Normal</button>
+              <button type="button" class="mode-btn" data-value="hard">Hard</button>
+              <button type="button" class="mode-btn" data-value="adaptive">Adaptive</button>
+            </div>
+            <div class="lobby-bot-fill" id="lobby-bot-fill-row">
+              <label for="lobby-bot-fill">Bot Fill Target (PvP):</label>
+              <input type="number" id="lobby-bot-fill" min="0" max="8" value="3">
+            </div>
             <button type="submit" class="btn-start">CREATE ROOM</button>
           </form>
 

@@ -18,6 +18,7 @@ export interface BotMemory {
   lastDodge?: number;
   lastMemoryUpdate?: number;
   aggressionLevel?: number;
+  dodgeChance?: number;
   dangerZones?: unknown[];
   lastCollisionAvoidance?: number;
   attackTargetPos?: 'left' | 'right' | 'top';

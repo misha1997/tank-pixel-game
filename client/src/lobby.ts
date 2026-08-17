@@ -1,4 +1,4 @@
-import type { AuthUser, GameMode, RoomSummary, RoomVisibility } from '@tank/shared';
+import type { AuthUser, BotDifficulty, GameMode, RoomSummary, RoomVisibility } from '@tank/shared';
 import { socket } from './socket.js';
 import { fetchMaps } from './maps.js';
 import { initMapEditor } from './mapEditor.js';
@@ -12,6 +12,9 @@ export function initLobby(account: AuthUser | null, onRoomChosen: (room: RoomSum
   const createModeGroup = document.getElementById('lobby-create-mode') as HTMLElement;
   const createVisibilityGroup = document.getElementById('lobby-create-visibility') as HTMLElement;
   const createMapSelect = document.getElementById('lobby-create-map') as HTMLSelectElement;
+  const createDifficultyGroup = document.getElementById('lobby-create-difficulty') as HTMLElement;
+  const botFillRow = document.getElementById('lobby-bot-fill-row') as HTMLElement;
+  const botFillInput = document.getElementById('lobby-bot-fill') as HTMLInputElement;
   const joinForm = document.getElementById('lobby-join-form') as HTMLFormElement;
   const joinCodeInput = document.getElementById('lobby-join-code') as HTMLInputElement;
   const errorBox = document.getElementById('lobby-error') as HTMLElement;
@@ -67,7 +70,17 @@ export function initLobby(account: AuthUser | null, onRoomChosen: (room: RoomSum
   }
   wireToggleGroup(createModeGroup);
   wireToggleGroup(createVisibilityGroup);
-  createModeGroup.addEventListener('click', () => refreshMapOptions());
+  wireToggleGroup(createDifficultyGroup);
+
+  function updateBotFillVisibility(): void {
+    const mode = (selectedToggle(createModeGroup) || 'pvp') as GameMode;
+    botFillRow.classList.toggle('tool-hidden', mode !== 'pvp');
+  }
+  createModeGroup.addEventListener('click', () => {
+    refreshMapOptions();
+    updateBotFillVisibility();
+  });
+  updateBotFillVisibility();
   refreshMapOptions();
 
   function renderRooms(rooms: RoomSummary[]): void {
@@ -144,8 +157,10 @@ export function initLobby(account: AuthUser | null, onRoomChosen: (room: RoomSum
     const mode = (selectedToggle(createModeGroup) || 'pvp') as GameMode;
     const visibility = (selectedToggle(createVisibilityGroup) || 'public') as RoomVisibility;
     const mapId = createMapSelect.value || undefined;
+    const botDifficulty = (selectedToggle(createDifficultyGroup) || 'normal') as BotDifficulty;
+    const botFillTarget = mode === 'pvp' ? Number(botFillInput.value) || 0 : undefined;
 
-    socket.emit('lobby:create', { name, mode, visibility, mapId }, (result) => {
+    socket.emit('lobby:create', { name, mode, visibility, mapId, botDifficulty, botFillTarget }, (result) => {
       if (!result.ok) {
         errorBox.textContent = result.error;
         return;

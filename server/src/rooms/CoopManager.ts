@@ -1,10 +1,11 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { Server } from 'socket.io';
-import { BOT_UPDATE_INTERVAL, MAX_COOP_BOTS } from '@tank/shared';
+import { MAX_COOP_BOTS } from '@tank/shared';
 import type { ClientToServerEvents, ServerToClientEvents } from '@tank/shared';
 import type { RoomState } from './state.js';
 import { randomInteger } from '../utils/random.js';
 import type { BotAI } from './BotAI.js';
+import { applyWaveScaling, getDifficultyProfile, randomInRange, type ConcreteDifficulty } from './difficulty.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -14,6 +15,7 @@ export class CoopManager {
     private readonly io: TypedServer,
     private readonly roomId: string,
     private readonly ai: BotAI,
+    private readonly getDifficulty: () => ConcreteDifficulty,
   ) {}
 
   startCoopWave(): void {
@@ -102,6 +104,7 @@ export class CoopManager {
       return;
     }
 
+    const profile = applyWaveScaling(getDifficultyProfile(this.getDifficulty()), state.coopWave);
     const botId = 'coop_bot_' + uuidv4();
 
     state.players[botId] = {
@@ -130,7 +133,8 @@ export class CoopManager {
       stuckCounter: 0,
       lastDodge: 0,
       lastMemoryUpdate: 0,
-      aggressionLevel: 0.8,
+      aggressionLevel: randomInRange(profile.aggressionRange),
+      dodgeChance: profile.dodgeChance,
       dangerZones: [],
       lastCollisionAvoidance: 0,
       target: 'base',
@@ -156,7 +160,7 @@ export class CoopManager {
         state.enemiesKilled++;
         this.checkCoopVictory();
       }
-    }, BOT_UPDATE_INTERVAL);
+    }, profile.updateInterval);
   }
 
   checkCoopVictory(): void {

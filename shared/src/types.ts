@@ -34,7 +34,10 @@ export interface PlayerState {
   respawnShootingCooldown: number;
   health?: number;
   lives?: number;
+  rating?: number;
 }
+
+export type BotDifficulty = 'easy' | 'normal' | 'hard' | 'adaptive';
 
 export interface WallState {
   x: number;
@@ -73,6 +76,7 @@ export interface NewPlayerPayload {
   name: string;
   color: string;
   roomId: string;
+  rating?: number;
 }
 
 export interface AuthUser {
@@ -106,6 +110,8 @@ export interface CreateRoomPayload {
   mode: GameMode;
   visibility: RoomVisibility;
   mapId?: string;
+  botDifficulty?: BotDifficulty;
+  botFillTarget?: number;
 }
 
 export interface JoinRoomPayload {

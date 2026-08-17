@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { Server } from 'socket.io';
-import type { ClientToServerEvents, GameMode, RoomVisibility, ServerToClientEvents } from '@tank/shared';
+import type { BotDifficulty, ClientToServerEvents, GameMode, RoomVisibility, ServerToClientEvents } from '@tank/shared';
 import { GameRoom } from './GameRoom.js';
 import { resolveMapDefinition } from '../maps/resolve.js';
 
@@ -22,6 +22,8 @@ export class RoomManager {
     hostSocketId: string | null;
     isDefault?: boolean;
     mapId?: string;
+    botDifficulty?: BotDifficulty;
+    botFillTarget?: number;
   }): Promise<GameRoom> {
     const map = await resolveMapDefinition(options.mode, options.mapId);
 
@@ -35,6 +37,8 @@ export class RoomManager {
         hostSocketId: options.hostSocketId,
         isDefault: options.isDefault ?? false,
         map,
+        botDifficulty: options.botDifficulty,
+        botFillTarget: options.botFillTarget,
       },
       this.io,
     );
