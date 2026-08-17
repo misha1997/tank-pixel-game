@@ -1,4 +1,5 @@
 import type {
+  ChatMessage,
   CreateRoomPayload,
   GameMode,
   GameStateSnapshot,
@@ -23,6 +24,8 @@ export interface ClientToServerEvents {
   'lobby:create': (data: CreateRoomPayload, ack: (result: RoomActionResult) => void) => void;
   'lobby:join': (data: JoinRoomPayload, ack: (result: RoomActionResult) => void) => void;
   'room:kick': (data: { roomId: string; targetSocketId: string }) => void;
+
+  'chat:send': (text: string) => void;
 }
 
 export interface ServerToClientEvents {
@@ -41,4 +44,7 @@ export interface ServerToClientEvents {
   'lobby:rooms': (rooms: RoomSummary[]) => void;
   'room:players': (players: RoomPlayerInfo[]) => void;
   'room:kicked': () => void;
+
+  'chat:message': (message: ChatMessage) => void;
+  'chat:history': (messages: ChatMessage[]) => void;
 }

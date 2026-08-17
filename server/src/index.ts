@@ -50,8 +50,10 @@ function leaveCurrentRoom(socketId: string): void {
   const room = socketRooms.get(socketId);
   if (!room) return;
 
+  const leavingName = room.state.players[socketId]?.name;
   room.removePlayer(socketId);
   socketRooms.delete(socketId);
+  if (leavingName) room.broadcastSystemMessage(`${leavingName} left the battle`);
   roomManager.broadcastRoster(room);
   roomManager.broadcastLobby();
   roomManager.removeIfEmptyAndDestroyable(room);
@@ -120,11 +122,16 @@ io.on('connection', (socket) => {
 
     socket.emit('player id', socket.id);
     socket.emit('game mode', { mode: room.mode, wave: room.state.coopWave });
+    socket.emit('chat:history', room.getChatHistory());
 
     roomManager.broadcastRoster(room);
     roomManager.broadcastLobby();
 
     console.log('Room', room.name, 'players:', room.playerCount());
+  });
+
+  socket.on('chat:send', (text) => {
+    socketRooms.get(socket.id)?.sendChat(socket.id, text);
   });
 
   socket.on('movePieceRight', () => socketRooms.get(socket.id)?.move(socket.id, 1, 0, 'left'));

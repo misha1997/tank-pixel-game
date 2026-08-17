@@ -1,7 +1,9 @@
+import { v4 as uuidv4 } from 'uuid';
 import type { Server } from 'socket.io';
 import { GAME_UPDATE_INTERVAL, INVULNERABILITY_TIME } from '@tank/shared';
 import type {
   BotDifficulty,
+  ChatMessage,
   ClientToServerEvents,
   GameMode,
   GameStateSnapshot,
@@ -26,6 +28,9 @@ type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
 const MAX_ROOM_PLAYERS = 8;
 const DEFAULT_BOT_FILL_TARGET = 3;
+const CHAT_RATE_LIMIT_MS = 800;
+const CHAT_MAX_LENGTH = 200;
+const CHAT_HISTORY_LIMIT = 50;
 
 export interface GameRoomOptions {
   id: string;
@@ -61,6 +66,8 @@ export class GameRoom {
 
   status: RoomStatus = 'waiting';
   private readonly tickInterval: NodeJS.Timeout;
+  private readonly chatHistory: ChatMessage[] = [];
+  private readonly lastChatAt = new Map<string, number>();
 
   constructor(options: GameRoomOptions, private readonly io: TypedServer) {
     this.id = options.id;
@@ -75,7 +82,9 @@ export class GameRoom {
 
     this.state = createInitialRoomState(this.mode);
     this.map = new MapGenerator(this.state);
-    this.bullets = new BulletManager(this.state, io, this.id, () => this.players, () => this.coop);
+    this.bullets = new BulletManager(this.state, io, this.id, () => this.players, () => this.coop, (shooter, target) =>
+      this.broadcastSystemMessage(`${shooter} eliminated ${target}`),
+    );
     this.players = new PlayerManager(this.state, io, this.id, this.bullets);
     this.ai = new BotAI(this.state, this.bullets);
     this.coop = new CoopManager(this.state, io, this.id, this.ai, () => this.resolveCurrentDifficulty());
@@ -123,6 +132,8 @@ export class GameRoom {
       respawnShootingCooldown: Date.now() + 2000,
       rating,
     };
+
+    this.broadcastSystemMessage(`${name} joined the battle`);
 
     if (socketId === this.hostSocketId && this.status === 'waiting') {
       this.startMatch();
@@ -188,10 +199,12 @@ export class GameRoom {
 
   kick(requestingSocketId: string, targetSocketId: string): boolean {
     if (!this.hostSocketId || requestingSocketId !== this.hostSocketId) return false;
-    if (!this.state.players[targetSocketId]) return false;
+    const target = this.state.players[targetSocketId];
+    if (!target) return false;
 
     this.removePlayer(targetSocketId);
     this.io.to(targetSocketId).emit('room:kicked');
+    this.broadcastSystemMessage(`${target.name} was removed by the host`);
     return true;
   }
 
@@ -238,6 +251,35 @@ export class GameRoom {
     return Object.entries(this.state.players)
       .filter(([, player]) => !player.isBot)
       .map(([socketId, player]) => ({ socketId, name: player.name, isHost: socketId === this.hostSocketId }));
+  }
+
+  sendChat(socketId: string, text: string): void {
+    const player = this.state.players[socketId];
+    if (!player || player.isBot) return;
+
+    const now = Date.now();
+    const last = this.lastChatAt.get(socketId) ?? 0;
+    if (now - last < CHAT_RATE_LIMIT_MS) return;
+
+    const trimmed = text.trim().slice(0, CHAT_MAX_LENGTH);
+    if (!trimmed) return;
+
+    this.lastChatAt.set(socketId, now);
+    this.broadcastChat({ id: uuidv4(), authorName: player.name, text: trimmed, timestamp: now });
+  }
+
+  broadcastSystemMessage(text: string): void {
+    this.broadcastChat({ id: uuidv4(), authorName: null, text, timestamp: Date.now(), system: true });
+  }
+
+  getChatHistory(): ChatMessage[] {
+    return this.chatHistory;
+  }
+
+  private broadcastChat(message: ChatMessage): void {
+    this.chatHistory.push(message);
+    if (this.chatHistory.length > CHAT_HISTORY_LIMIT) this.chatHistory.shift();
+    this.io.to(this.id).emit('chat:message', message);
   }
 
   destroy(): void {

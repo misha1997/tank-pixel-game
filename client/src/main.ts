@@ -5,6 +5,7 @@ import { initMenu } from './menu.js';
 import { initAuth } from './auth.js';
 import { initLobby } from './lobby.js';
 import { initRoster } from './roster.js';
+import { initChat, isTypingIntoField } from './chat.js';
 
 const root = document.querySelector<HTMLElement>('#root')!;
 
@@ -38,6 +39,7 @@ let renderedFrames = 0;
 initAuth((account) => {
   initLobby(account, (room) => {
     initRoster(room);
+    initChat();
     initMenu(({ name, color }) => {
       view = new View(root);
       socket.emit('new player', { name, color, roomId: room.id, rating: account?.rating });
@@ -58,6 +60,7 @@ socket.on('player id', (id) => {
 
 document.addEventListener('keydown', (event) => {
   if (!view) return;
+  if (isTypingIntoField()) return;
 
   if (keyStates[event.keyCode]) return;
   keyStates[event.keyCode] = true;
@@ -112,6 +115,9 @@ document.addEventListener('keydown', (event) => {
       }
 
       socket.emit('moveShot');
+      break;
+    case 13: // Enter — focus chat
+      document.getElementById('chat-input')?.focus();
       break;
   }
 });

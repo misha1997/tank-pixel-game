@@ -14,6 +14,7 @@ export class BulletManager {
     private readonly roomId: string,
     private readonly getPlayers: () => PlayerManager,
     private readonly getCoop: () => CoopManager,
+    private readonly notifyKill: (shooterName: string, targetName: string) => void,
   ) {
     this.initializePool();
   }
@@ -195,6 +196,7 @@ export class BulletManager {
             if (bullet.x === cellX && bullet.y === cellY) {
               if (target.position !== 'boomOne' && target.position !== 'boomTwo') {
                 state.players[shooterId].score++;
+                this.notifyKill(state.players[shooterId].name, target.name);
                 this.getPlayers().boomAnimate(playerId);
                 return true;
               }

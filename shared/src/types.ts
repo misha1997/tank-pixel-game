@@ -155,3 +155,11 @@ export interface SaveMapPayload {
   visibility: RoomVisibility;
   data: MapDefinition;
 }
+
+export interface ChatMessage {
+  id: string;
+  authorName: string | null;
+  text: string;
+  timestamp: number;
+  system?: boolean;
+}
