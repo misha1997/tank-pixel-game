@@ -11,9 +11,11 @@ export const MAX_PLAYERS = 20;
 export const COLLISION_CHECK_DISTANCE = 5;
 export const BULLET_POOL_SIZE = 100;
 
+// Kept at a 5:3 ratio (matching the original 50x30) so the client minimap's
+// fixed-aspect box still maps 1:1 without special-casing — see view.ts.
 export const size = {
-  col: 50,
-  row: 30,
+  col: 60,
+  row: 36,
 };
 
 export const positionPiece: Record<TankAnimState, number[][]> = {

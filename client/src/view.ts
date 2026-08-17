@@ -1,6 +1,9 @@
 import { size } from '@tank/shared';
 import type { BaseState, BrickState, GameStateSnapshot, PlayerState, WallState } from '@tank/shared';
 
+const MIN_CELL_SIZE = 6;
+const MAX_CELL_SIZE = 32;
+
 export default class View {
   private element: HTMLElement;
   private canvas: HTMLCanvasElement;
@@ -11,10 +14,14 @@ export default class View {
   private width = 0;
   private height = 0;
 
-  private readonly cellSize = 22;
-  private readonly cellPadding = 2;
-  private readonly innerCellSize = 12;
-  private readonly innerCellOffset = 4;
+  // Recomputed every resize() so the grid fills whatever viewport it's
+  // given instead of being anchored at a fixed pixel size — see resize().
+  private cellSize = 22;
+  private cellPadding = 2;
+  private innerCellSize = 12;
+  private innerCellOffset = 4;
+  private uiFontSize = 22;
+  private readonly uiWidth = 300;
 
   private readonly colors = {
     filled: 'rgba(0, 0, 0)',
@@ -36,8 +43,6 @@ export default class View {
     window.addEventListener('resize', () => this.resize());
 
     this.element.appendChild(this.canvas);
-
-    this.context.font = '22px DS-Digital-Italic';
   }
 
   resize(): void {
@@ -45,6 +50,15 @@ export default class View {
     this.canvas.height = window.innerHeight;
     this.width = this.canvas.width;
     this.height = this.canvas.height;
+
+    const availableWidth = Math.max(0, this.width - this.uiWidth);
+    const rawCellSize = Math.min(availableWidth / size.col, this.height / size.row) || MIN_CELL_SIZE;
+    this.cellSize = Math.max(MIN_CELL_SIZE, Math.min(MAX_CELL_SIZE, Math.floor(rawCellSize)));
+    this.cellPadding = Math.max(1, Math.round(this.cellSize * 0.09));
+    this.innerCellOffset = Math.max(2, Math.round(this.cellSize * 0.18));
+    this.innerCellSize = Math.max(2, this.cellSize - this.innerCellOffset * 2);
+    this.uiFontSize = Math.max(12, this.cellSize);
+    this.context.font = `${this.uiFontSize}px DS-Digital-Italic`;
 
     if (this.backgroundCanvas) {
       this.updateBackground();
@@ -236,49 +250,52 @@ export default class View {
   }
 
   private renderPlayers(players: Record<string, PlayerState>, myPlayerId: string | null, data: GameStateSnapshot): void {
-    const uiWidth = 300;
-    const uiX = this.width - uiWidth;
+    const uiX = this.width - this.uiWidth;
+    const baseFont = this.uiFontSize;
+    const smallFont = Math.round(baseFont * 0.82);
+    const largeFont = Math.round(baseFont * 1.09);
+    const lineHeight = Math.round(smallFont * 1.25);
 
     this.context.fillStyle = 'rgba(154, 166, 128, 0.95)';
-    this.context.fillRect(uiX, 0, uiWidth, this.height);
+    this.context.fillRect(uiX, 0, this.uiWidth, this.height);
 
     this.context.strokeStyle = 'rgba(0, 0, 0, 0.3)';
     this.context.lineWidth = 2;
-    this.context.strokeRect(uiX, 0, uiWidth, this.height);
+    this.context.strokeRect(uiX, 0, this.uiWidth, this.height);
 
-    this.context.font = '22px DS-Digital-Italic';
+    this.context.font = `${baseFont}px DS-Digital-Italic`;
     this.context.fillStyle = this.colors.empty;
 
     if (data && data.gameMode === 'coop') {
       this.context.fillStyle = '#c20000';
-      this.context.fillText('CO-OP DEFENSE', uiX + 10, 25);
+      this.context.fillText('CO-OP DEFENSE', uiX + 10, lineHeight);
 
       this.context.fillStyle = this.colors.filled;
-      this.context.font = '18px DS-Digital-Italic';
-      this.context.fillText(`WAVE: ${data.wave || 1}`, uiX + 10, 50);
-      this.context.fillText(`ENEMIES: ${data.enemiesRemaining || 0}`, uiX + 10, 70);
-      this.context.fillText(`KILLED: ${data.enemiesKilled || 0}`, uiX + 10, 90);
+      this.context.font = `${smallFont}px DS-Digital-Italic`;
+      this.context.fillText(`WAVE: ${data.wave || 1}`, uiX + 10, lineHeight * 2);
+      this.context.fillText(`ENEMIES: ${data.enemiesRemaining || 0}`, uiX + 10, lineHeight * 3);
+      this.context.fillText(`KILLED: ${data.enemiesKilled || 0}`, uiX + 10, lineHeight * 4);
 
       if (data.base) {
         const baseHealth = data.base.health > 0 ? 'OK' : 'DESTROYED';
         const baseColor = data.base.health > 0 ? '#00AA00' : '#ff0000';
         this.context.fillStyle = baseColor;
-        this.context.fillText(`BASE: ${baseHealth}`, uiX + 10, 115);
+        this.context.fillText(`BASE: ${baseHealth}`, uiX + 10, lineHeight * 5);
       }
 
       if (data.gameState === 'defeat') {
         this.context.fillStyle = '#ff0000';
-        this.context.font = '24px DS-Digital-Italic';
-        this.context.fillText('GAME OVER', uiX + 10, 150);
+        this.context.font = `${largeFont}px DS-Digital-Italic`;
+        this.context.fillText('GAME OVER', uiX + 10, lineHeight * 7);
       } else if (data.gameState === 'victory') {
         this.context.fillStyle = '#00AA00';
-        this.context.font = '24px DS-Digital-Italic';
-        this.context.fillText('VICTORY!', uiX + 10, 150);
+        this.context.font = `${largeFont}px DS-Digital-Italic`;
+        this.context.fillText('VICTORY!', uiX + 10, lineHeight * 7);
       }
 
       this.context.fillStyle = this.colors.filled;
-      this.context.font = '18px DS-Digital-Italic';
-      let playerY = 180;
+      this.context.font = `${smallFont}px DS-Digital-Italic`;
+      let playerY = lineHeight * 9;
       for (const playerId in players) {
         const player = players[playerId];
         if (player.isBot) continue;
@@ -287,7 +304,7 @@ export default class View {
         const prefix = isMe ? '► ' : '';
         const lives = '♥'.repeat(player.lives || 1);
         this.context.fillText(`${prefix}${player.name}: ${lives}`, uiX + 10, playerY);
-        playerY += 22;
+        playerY += lineHeight;
       }
 
       return;
@@ -295,15 +312,16 @@ export default class View {
 
     this.context.fillStyle = this.colors.filled;
     let countPlayers = 0;
-    let playerPosition = 30;
+    let playerPosition = lineHeight;
     const playersArray = Object.entries(players);
 
     playersArray.sort((a, b) => b[1].score - a[1].score);
 
+    this.context.font = `${smallFont}px DS-Digital-Italic`;
     for (let i = 0; i < playersArray.length; i++) {
       const [playerId, player] = playersArray[i];
       countPlayers++;
-      playerPosition += 25;
+      playerPosition += lineHeight;
 
       const isMe = playerId === myPlayerId;
       const isBot = player.isBot;
@@ -323,8 +341,9 @@ export default class View {
       this.context.fillText(text, uiX + 10, playerPosition);
     }
 
+    this.context.font = `${baseFont}px DS-Digital-Italic`;
     this.context.fillStyle = this.colors.filled;
-    this.context.fillText('Players: ' + countPlayers, uiX + 10, 20);
+    this.context.fillText('Players: ' + countPlayers, uiX + 10, Math.round(baseFont * 0.9));
 
     if (countPlayers > 2) {
       this.renderMiniMap(players, myPlayerId, uiX);
@@ -336,7 +355,7 @@ export default class View {
     const miniMapY = Math.min(this.height - 220, 400);
     const miniMapHeight = 250;
     const miniMapWidth = 150;
-    const scale = miniMapHeight / 50;
+    const scale = miniMapHeight / size.col;
 
     this.context.fillStyle = 'rgba(0, 0, 0, 0.15)';
     this.context.fillRect(miniMapX, miniMapY, miniMapHeight, miniMapWidth);
@@ -385,9 +404,10 @@ export default class View {
       }
     }
 
+    const smallFont = Math.round(this.uiFontSize * 0.82);
     this.context.fillStyle = this.colors.filled;
-    this.context.font = '18px DS-Digital-Italic';
+    this.context.font = `${smallFont}px DS-Digital-Italic`;
     this.context.fillText('Mini Map', miniMapX, miniMapY - 10);
-    this.context.font = '22px DS-Digital-Italic';
+    this.context.font = `${this.uiFontSize}px DS-Digital-Italic`;
   }
 }
