@@ -6,6 +6,18 @@ export async function fetchMaps(mode: GameMode): Promise<MapListResponse> {
   return (await response.json()) as MapListResponse;
 }
 
+export async function fetchMyMaps(): Promise<MapSummary[]> {
+  const response = await fetch('/api/maps', { credentials: 'include' });
+  if (!response.ok) return [];
+  const data = (await response.json()) as MapListResponse;
+  return data.mine;
+}
+
+export async function deleteMap(id: string): Promise<boolean> {
+  const response = await fetch(`/api/maps/${id}`, { method: 'DELETE', credentials: 'include' });
+  return response.ok;
+}
+
 export async function saveMap(payload: SaveMapPayload): Promise<{ ok: true; map: MapSummary } | { ok: false; error: string }> {
   const response = await fetch('/api/maps', {
     method: 'POST',

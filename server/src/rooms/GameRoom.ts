@@ -129,13 +129,15 @@ export class GameRoom {
   }
 
   addPlayer(socketId: string, name: string, color: string, rating?: number, userId?: string): void {
+    const spawnPos = this.players.getSafeSpawnPosition();
+
     this.state.players[socketId] = {
       name,
       color,
       status: true,
       isBot: false,
-      x: 3,
-      y: 3,
+      x: spawnPos.x,
+      y: spawnPos.y,
       position: 'bottom',
       bullets: {},
       score: 0,
@@ -340,12 +342,19 @@ export class GameRoom {
 
     resetPlayField(state.playField);
 
+    // Two passes, not one: bullets must always win the cell they're on. In a
+    // single combined pass, a player processed later in this same loop could
+    // re-stamp their tank body over a bullet another player already fired
+    // into that cell this tick, briefly hiding/recoloring the bullet.
     for (const playerId in state.players) {
       const player = state.players[playerId];
       if (player && player.status) {
         this.players.applyPlayerToField(player);
       }
+    }
 
+    for (const playerId in state.players) {
+      const player = state.players[playerId];
       if (player && player.bullets) {
         for (const bulletId in player.bullets) {
           const bullet = player.bullets[bulletId];
@@ -353,7 +362,11 @@ export class GameRoom {
             bullet && bullet.x >= 0 && bullet.x < state.playField[0]?.length &&
             bullet.y >= 0 && bullet.y < state.playField.length
           ) {
-            state.playField[bullet.y][bullet.x] = 1;
+            // 2, not 1 — keeps bullets distinguishable from tank-body cells
+            // on the client (view.ts), which otherwise colors any filled
+            // cell by whichever player's 3x3 box it falls inside, painting
+            // a bullet the target's color the moment it enters their tile.
+            state.playField[bullet.y][bullet.x] = 2;
           }
         }
       }

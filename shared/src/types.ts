@@ -85,6 +85,10 @@ export interface AuthUser {
   id: string;
   username: string;
   rating: number;
+  // Not assigned by the server yet — ranks are a future stage. Once real
+  // rank data exists, the in-battle rank card (client/src/hud.ts) starts
+  // showing automatically; until then it stays hidden.
+  rank?: string;
 }
 
 export type RoomVisibility = 'public' | 'private';

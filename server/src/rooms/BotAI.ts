@@ -17,6 +17,17 @@ interface AttackPosition {
   targetDir?: TankFacing;
 }
 
+// Canonical dx/dy -> facing mapping, verified against the human input handlers
+// in index.ts (movePieceRight sends dx:1, pos:'left', etc). The tank facing
+// names are gun-relative, not screen-relative, which is why "left" means
+// "moving/looking right" — see bulletDirections' comment in shared/constants.
+const CANONICAL_MOVES: Move[] = [
+  { dx: 0, dy: -1, pos: 'top' },
+  { dx: 0, dy: 1, pos: 'bottom' },
+  { dx: -1, dy: 0, pos: 'right' },
+  { dx: 1, dy: 0, pos: 'left' },
+];
+
 export class BotAI {
   constructor(
     private readonly state: RoomState,
@@ -31,6 +42,10 @@ export class BotAI {
     if (!bot || !bot.status || !memory) return;
 
     const now = Date.now();
+    // status stays true for the full boomAnimate() duration (only flips to
+    // false once the animation ends) — without this the bot keeps dodging,
+    // shooting, and moving while its own death animation is still playing.
+    if (bot.exploding && now < bot.explosionEndTime) return;
 
     if (!memory.positions) memory.positions = [];
     if (now - (memory.lastPosUpdate || 0) > 500) {
@@ -145,13 +160,8 @@ export class BotAI {
     return true;
   }
 
-  getRandomValidMove(bot: PlayerState): Move | null {
-    const moves: Move[] = [
-      { dx: 0, dy: -1, pos: 'top' },
-      { dx: 0, dy: 1, pos: 'bottom' },
-      { dx: -1, dy: 0, pos: 'left' },
-      { dx: 1, dy: 0, pos: 'right' },
-    ];
+  getRandomValidMove(bot: PlayerState, avoid?: (x: number, y: number) => boolean): Move | null {
+    const moves: Move[] = [...CANONICAL_MOVES];
     const shuffled = moves.sort(() => Math.random() - 0.5);
     for (const move of shuffled) {
       const newX = bot.x + move.dx;
@@ -159,7 +169,8 @@ export class BotAI {
       if (
         newX >= 0 && newX < size.col - 3 &&
         newY >= 0 && newY < size.row - 3 &&
-        !this.bullets.checkWallCollision(newX, newY, move.pos)
+        !this.bullets.checkWallCollision(newX, newY, move.pos) &&
+        !(avoid && avoid(newX, newY))
       ) {
         return move;
       }
@@ -167,7 +178,7 @@ export class BotAI {
     return null;
   }
 
-  shouldDodgeBullet(bot: PlayerState): Move | null {
+  shouldDodgeBullet(bot: PlayerState, avoid?: (x: number, y: number) => boolean): Move | null {
     const { state } = this;
     let threat: BulletState | null = null;
     let minDist = Infinity;
@@ -190,8 +201,8 @@ export class BotAI {
     const moves: Move[] = [
       { dx: 1, dy: 0, pos: 'left' },
       { dx: -1, dy: 0, pos: 'right' },
-      { dx: 0, dy: 1, pos: 'top' },
-      { dx: 0, dy: -1, pos: 'bottom' },
+      { dx: 0, dy: 1, pos: 'bottom' },
+      { dx: 0, dy: -1, pos: 'top' },
     ];
 
     for (const move of moves) {
@@ -201,7 +212,8 @@ export class BotAI {
         newX >= 0 && newX < size.col - 3 &&
         newY >= 0 && newY < size.row - 3 &&
         !this.bullets.checkWallCollision(newX, newY, move.pos) &&
-        !this.wouldBeHit({ x: newX, y: newY }, threat)
+        !this.wouldBeHit({ x: newX, y: newY }, threat) &&
+        !(avoid && avoid(newX, newY))
       ) {
         return move;
       }
@@ -247,15 +259,16 @@ export class BotAI {
     return this.canShootTargetFrom(bot, target);
   }
 
-  canShootTargetFrom(bot: PlayerState, target: { x: number; y: number }): TankFacing | null {
-    const { state } = this;
+  // from doesn't have to be an actual player — findFiringPosition probes
+  // hypothetical spots with this same check.
+  canShootTargetFrom(from: { x: number; y: number }, target: { x: number; y: number }): TankFacing | null {
     const directions: TankFacing[] = ['top', 'bottom', 'left', 'right'];
     for (const dir of directions) {
       const bulletConfig = bulletDirections[dir];
       if (!bulletConfig) continue;
 
-      let checkX = bot.x + bulletConfig.offsetX;
-      let checkY = bot.y + bulletConfig.offsetY;
+      let checkX = from.x + bulletConfig.offsetX;
+      let checkY = from.y + bulletConfig.offsetY;
 
       for (let i = 0; i < 15; i++) {
         checkX += bulletConfig.dx;
@@ -268,12 +281,26 @@ export class BotAI {
           return dir;
         }
 
-        for (const wall of state.walls) {
-          if (wall.x === checkX && wall.y === checkY) break;
-        }
+        // A wall blocks the shot entirely — stop marching this ray. (Previously
+        // this `break` only exited the inner wall-scan loop, so bots thought
+        // they could see straight through walls when scoring targets.)
+        if (this.isWallAt(checkX, checkY)) break;
       }
     }
     return null;
+  }
+
+  isWallAt(x: number, y: number): boolean {
+    const { state } = this;
+    for (const wall of state.walls) {
+      if (wall.x === x && wall.y === y) return true;
+    }
+    if (state.gameMode === 'coop') {
+      for (const brick of state.bricks) {
+        if (brick.x === x && brick.y === y && brick.health > 0) return true;
+      }
+    }
+    return false;
   }
 
   calculateRetreat(bot: PlayerState, player: PlayerState): Move | null {
@@ -283,9 +310,9 @@ export class BotAI {
     const moves: Move[] = [];
     if (Math.abs(dx) > Math.abs(dy)) {
       moves.push({ dx: dx > 0 ? 1 : -1, dy: 0, pos: dx > 0 ? 'left' : 'right' });
-      moves.push({ dx: 0, dy: dy > 0 ? 1 : -1, pos: dy > 0 ? 'top' : 'bottom' });
+      moves.push({ dx: 0, dy: dy > 0 ? 1 : -1, pos: dy > 0 ? 'bottom' : 'top' });
     } else {
-      moves.push({ dx: 0, dy: dy > 0 ? 1 : -1, pos: dy > 0 ? 'top' : 'bottom' });
+      moves.push({ dx: 0, dy: dy > 0 ? 1 : -1, pos: dy > 0 ? 'bottom' : 'top' });
       moves.push({ dx: dx > 0 ? 1 : -1, dy: 0, pos: dx > 0 ? 'left' : 'right' });
     }
 
@@ -304,22 +331,198 @@ export class BotAI {
   }
 
   isCollidingWithOtherBots(bot: PlayerState, botId: string, move: Move): boolean {
-    const { state } = this;
     const newX = bot.x + move.dx;
     const newY = bot.y + move.dy;
+    return this.wouldOverlapPlayer(newX, newY, botId, (p) => !!p.isCoopEnemy);
+  }
 
+  // Would the tank's 3x3 footprint at (x, y) overlap any other live bot's footprint?
+  // Used to keep PvP bots from bunching up on top of each other while pathing.
+  wouldCollideWithAnyBot(botId: string, x: number, y: number): boolean {
+    return this.wouldOverlapPlayer(x, y, botId, (p) => p.isBot);
+  }
+
+  private wouldOverlapPlayer(
+    x: number,
+    y: number,
+    selfId: string,
+    predicate: (player: PlayerState) => boolean,
+  ): boolean {
+    const { state } = this;
     for (const otherId in state.players) {
-      if (otherId === botId) continue;
+      if (otherId === selfId) continue;
       const other = state.players[otherId];
-      if (!other || !other.status || !other.isCoopEnemy) continue;
+      if (!other || !other.status || other.exploding || !predicate(other)) continue;
 
-      const dist = Math.abs(newX - other.x) + Math.abs(newY - other.y);
-      if (dist < 2) return true;
+      if (Math.abs(x - other.x) < 3 && Math.abs(y - other.y) < 3) return true;
     }
     return false;
   }
 
-  calculateSmartPath(bot: PlayerState, targetX: number, targetY: number): Move | null {
+  // Picks the player worth engaging: prefers a target the bot already has a
+  // clear shot at, then falls back to nearest. `preferredTargetId` (the bot's
+  // current target, if any) gets a small bonus so the bot commits to chasing
+  // someone instead of flip-flopping targets every tick a marginally closer
+  // player wanders by.
+  findBestPvpTarget(bot: PlayerState, botId: string, preferredTargetId?: string): { id: string; player: PlayerState } | null {
+    const { state } = this;
+    const now = Date.now();
+    let best: PlayerState | null = null;
+    let bestId: string | null = null;
+    let bestScore = -Infinity;
+
+    for (const playerId in state.players) {
+      if (playerId === botId) continue;
+      const player = state.players[playerId];
+      if (!player || !player.status || player.isCoopEnemy) continue;
+      if (player.invulnerableUntil && now < player.invulnerableUntil) continue;
+      if (player.exploding && now < player.explosionEndTime) continue;
+
+      const dist = Math.abs(bot.x - player.x) + Math.abs(bot.y - player.y);
+      const hasShot = this.canShootTargetFrom(bot, player) !== null;
+      let score = (hasShot ? 1000 : 0) - dist;
+      if (playerId === preferredTargetId) score += 5;
+
+      if (score > bestScore) {
+        bestScore = score;
+        best = player;
+        bestId = playerId;
+      }
+    }
+
+    return best && bestId ? { id: bestId, player: best } : null;
+  }
+
+  // Scans the target's row and column (the only lines a tank can actually
+  // shoot along) for the closest cell that both has an unobstructed shot at
+  // the target and isn't itself wall-embedded, so pursuit has somewhere
+  // concrete to path toward instead of beelining onto the target's own tile.
+  findFiringPosition(bot: PlayerState, target: PlayerState): { x: number; y: number } | null {
+    const maxX = size.col - 3;
+    const maxY = size.row - 3;
+    const RANGE = 14;
+
+    const candidates: { x: number; y: number; dist: number }[] = [];
+    for (let d = 1; d <= RANGE; d++) {
+      if (target.x - d >= 0) candidates.push({ x: target.x - d, y: target.y, dist: d });
+      if (target.x + d <= maxX) candidates.push({ x: target.x + d, y: target.y, dist: d });
+      if (target.y - d >= 0) candidates.push({ x: target.x, y: target.y - d, dist: d });
+      if (target.y + d <= maxY) candidates.push({ x: target.x, y: target.y + d, dist: d });
+    }
+    candidates.sort((a, b) => a.dist - b.dist);
+
+    for (const c of candidates) {
+      if (this.isWallAt(c.x, c.y)) continue;
+      if (this.canShootTargetFrom(c, target)) return { x: c.x, y: c.y };
+    }
+    return null;
+  }
+
+  // BFS over the walkable grid — same per-direction wall mask real movement
+  // uses, so a returned path is guaranteed walkable step by step. Lets bots
+  // route around obstacles instead of nudging into them and giving up.
+  findPath(startX: number, startY: number, goalX: number, goalY: number): { x: number; y: number }[] | null {
+    const maxX = size.col - 3;
+    const maxY = size.row - 3;
+    if (goalX < 0 || goalX > maxX || goalY < 0 || goalY > maxY) return null;
+    if (startX === goalX && startY === goalY) return [];
+
+    const startKey = `${startX},${startY}`;
+    const goalKey = `${goalX},${goalY}`;
+    const cameFrom = new Map<string, string>();
+    const visited = new Set<string>([startKey]);
+    const queue: [number, number][] = [[startX, startY]];
+    const maxExplored = 2500;
+
+    let head = 0;
+    let explored = 0;
+
+    while (head < queue.length && explored < maxExplored) {
+      const [x, y] = queue[head++];
+      explored++;
+
+      for (const d of CANONICAL_MOVES) {
+        const nx = x + d.dx;
+        const ny = y + d.dy;
+        if (nx < 0 || nx > maxX || ny < 0 || ny > maxY) continue;
+
+        const nKey = `${nx},${ny}`;
+        if (visited.has(nKey)) continue;
+        if (this.bullets.checkWallCollision(nx, ny, d.pos)) continue;
+
+        visited.add(nKey);
+        cameFrom.set(nKey, `${x},${y}`);
+
+        if (nKey === goalKey) {
+          const path: { x: number; y: number }[] = [];
+          let cur = nKey;
+          while (cur !== startKey) {
+            const [px, py] = cur.split(',').map(Number);
+            path.push({ x: px, y: py });
+            cur = cameFrom.get(cur)!;
+          }
+          return path.reverse();
+        }
+
+        queue.push([nx, ny]);
+      }
+    }
+
+    return null;
+  }
+
+  private stepToward(bot: PlayerState, next: { x: number; y: number }): Move | null {
+    const dx = next.x - bot.x;
+    const dy = next.y - bot.y;
+    return CANONICAL_MOVES.find((m) => m.dx === dx && m.dy === dy) ?? null;
+  }
+
+  // High-level pursuit: walk a cached BFS route toward a firing position on
+  // the target's row/column, only re-planning when the goal has drifted far
+  // enough to matter, the route ran out, or it's gone stale — full BFS every
+  // tick would be wasteful since the target moves a cell at a time.
+  planPursuit(
+    bot: PlayerState,
+    memory: BotMemory,
+    target: PlayerState,
+    avoid?: (x: number, y: number) => boolean,
+  ): Move | null {
+    const goal = this.findFiringPosition(bot, target) ?? { x: target.x, y: target.y };
+    const now = Date.now();
+
+    const goalDrift = memory.pathGoalX === undefined
+      ? Infinity
+      : Math.abs(memory.pathGoalX - goal.x) + Math.abs((memory.pathGoalY ?? goal.y) - goal.y);
+    const stale = now - (memory.pathComputedAt ?? 0) > 1500;
+    const exhausted = !memory.path || memory.path.length === 0;
+
+    if (exhausted || goalDrift > 3 || stale) {
+      memory.path = this.findPath(bot.x, bot.y, goal.x, goal.y) ?? undefined;
+      memory.pathGoalX = goal.x;
+      memory.pathGoalY = goal.y;
+      memory.pathComputedAt = now;
+    }
+
+    if (memory.path && memory.path.length > 0) {
+      const move = this.stepToward(bot, memory.path[0]);
+      if (move && !(avoid && avoid(bot.x + move.dx, bot.y + move.dy))) {
+        memory.path.shift();
+        return move;
+      }
+      // Something's in the way (another bot, or we drifted off-route) — drop
+      // the stale route and fall back to a direct step; we'll replan next tick.
+      memory.path = undefined;
+    }
+
+    return this.calculateSmartPath(bot, goal.x, goal.y, avoid);
+  }
+
+  calculateSmartPath(
+    bot: PlayerState,
+    targetX: number,
+    targetY: number,
+    avoid?: (x: number, y: number) => boolean,
+  ): Move | null {
     const dx = Math.sign(targetX - bot.x);
     const dy = Math.sign(targetY - bot.y);
 
@@ -338,7 +541,8 @@ export class BotAI {
       if (
         newX >= 0 && newX < size.col - 3 &&
         newY >= 0 && newY < size.row - 3 &&
-        !this.bullets.checkWallCollision(newX, newY, move.pos)
+        !this.bullets.checkWallCollision(newX, newY, move.pos) &&
+        !(avoid && avoid(newX, newY))
       ) {
         return move;
       }
@@ -461,11 +665,7 @@ export class BotAI {
         return true;
       }
 
-      for (const wall of state.walls) {
-        if (wall.x === checkX && wall.y === checkY) {
-          return false;
-        }
-      }
+      if (this.isWallAt(checkX, checkY)) return false;
     }
 
     return false;

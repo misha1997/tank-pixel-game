@@ -112,7 +112,7 @@ export class CoopManager {
 
     state.players[botId] = {
       name: 'Enemy Tank',
-      color: '#c20000',
+      color: '#000000',
       status: true,
       isBot: true,
       isCoopEnemy: true,

@@ -1,8 +1,24 @@
 import { size } from '@tank/shared';
 import type { BaseState, BrickState, GameStateSnapshot, PlayerState, WallState } from '@tank/shared';
 
-const MIN_CELL_SIZE = 6;
-const MAX_CELL_SIZE = 32;
+// Pixel size pinned to the original prototype (D:\ProjectNode\tank-pixel-game,
+// static/view.js) — a fixed 22px cell, not scaled to fit the container. The
+// camera (see render()) is what keeps a bigger arena playable at this size.
+const CELL_SIZE = 22;
+const CELL_PADDING = 2;
+const INNER_CELL_OFFSET = 4;
+const INNER_CELL_SIZE = 12;
+
+// The three nested squares below are cellSize-2 / 16 / 12 wide — 2px
+// smaller than the cell on each layer — but every fillRect used to start
+// flush at the cell's own (0,0), so that 2px only ever showed up on the
+// right/bottom edge. Anchoring xPos/yPos here instead centers the whole
+// stack, splitting that gap evenly on all four sides.
+const CELL_MARGIN = 1;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
 
 export default class View {
   private element: HTMLElement;
@@ -13,15 +29,13 @@ export default class View {
 
   private width = 0;
   private height = 0;
+  private devicePixelRatio = 1;
 
-  // Recomputed every resize() so the grid fills whatever viewport it's
-  // given instead of being anchored at a fixed pixel size — see resize().
-  private cellSize = 22;
-  private cellPadding = 2;
-  private innerCellSize = 12;
-  private innerCellOffset = 4;
-  private uiFontSize = 22;
-  private readonly uiWidth = 300;
+  private readonly cellSize = CELL_SIZE;
+  private readonly cellPadding = CELL_PADDING;
+  private readonly innerCellSize = INNER_CELL_SIZE;
+  private readonly innerCellOffset = INNER_CELL_OFFSET;
+  private readonly uiFontSize = CELL_SIZE;
 
   private readonly colors = {
     filled: 'rgba(0, 0, 0)',
@@ -35,9 +49,11 @@ export default class View {
 
     this.canvas = document.createElement('canvas');
     this.context = this.canvas.getContext('2d')!;
+    this.context.font = `${this.uiFontSize}px DS-Digital-Italic`;
 
     this.backgroundCanvas = document.createElement('canvas');
     this.backgroundContext = this.backgroundCanvas.getContext('2d')!;
+    this.updateBackground();
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -46,34 +62,31 @@ export default class View {
   }
 
   resize(): void {
-    this.canvas.width = window.innerWidth;
-    this.canvas.height = window.innerHeight;
-    this.width = this.canvas.width;
-    this.height = this.canvas.height;
-
-    const availableWidth = Math.max(0, this.width - this.uiWidth);
-    const rawCellSize = Math.min(availableWidth / size.col, this.height / size.row) || MIN_CELL_SIZE;
-    this.cellSize = Math.max(MIN_CELL_SIZE, Math.min(MAX_CELL_SIZE, Math.floor(rawCellSize)));
-    this.cellPadding = Math.max(1, Math.round(this.cellSize * 0.09));
-    this.innerCellOffset = Math.max(2, Math.round(this.cellSize * 0.18));
-    this.innerCellSize = Math.max(2, this.cellSize - this.innerCellOffset * 2);
-    this.uiFontSize = Math.max(12, this.cellSize);
-    this.context.font = `${this.uiFontSize}px DS-Digital-Italic`;
-
-    if (this.backgroundCanvas) {
-      this.updateBackground();
-    }
+    // The canvas backing store is sized in *physical* pixels (CSS size ×
+    // devicePixelRatio); without this, a non-100% OS display scale (125%,
+    // 150%, ...) forces the browser to stretch our buffer by a fractional
+    // factor, so cell edges round to different physical pixels and look
+    // uneven. this.width/this.height stay in logical/CSS pixels — every
+    // other method's math (camera, cell positions) is unaffected — and
+    // render() applies the matching ctx.scale() once per frame.
+    this.devicePixelRatio = window.devicePixelRatio || 1;
+    this.width = this.element.clientWidth;
+    this.height = this.element.clientHeight;
+    this.canvas.width = Math.round(this.width * this.devicePixelRatio);
+    this.canvas.height = Math.round(this.height * this.devicePixelRatio);
+    this.canvas.style.width = `${this.width}px`;
+    this.canvas.style.height = `${this.height}px`;
   }
 
   private updateBackground(): void {
-    this.backgroundCanvas.width = this.width;
-    this.backgroundCanvas.height = this.height;
+    this.backgroundCanvas.width = size.col * this.cellSize;
+    this.backgroundCanvas.height = size.row * this.cellSize;
     this.drawBackground();
   }
 
   private drawBackground(): void {
     this.backgroundContext.fillStyle = this.colors.background;
-    this.backgroundContext.fillRect(0, 0, this.width, this.height);
+    this.backgroundContext.fillRect(0, 0, this.backgroundCanvas.width, this.backgroundCanvas.height);
 
     for (let y = 0; y < size.row; y++) {
       for (let x = 0; x < size.col; x++) {
@@ -83,8 +96,8 @@ export default class View {
   }
 
   private renderEmptyCell(x: number, y: number, ctx: CanvasRenderingContext2D): void {
-    const xPos = x * this.cellSize;
-    const yPos = y * this.cellSize;
+    const xPos = x * this.cellSize + CELL_MARGIN;
+    const yPos = y * this.cellSize + CELL_MARGIN;
 
     ctx.fillStyle = this.colors.empty;
     ctx.fillRect(xPos, yPos, this.cellSize - 2, this.cellSize - 2);
@@ -102,6 +115,30 @@ export default class View {
   }
 
   render(data: GameStateSnapshot, myPlayerId: string | null): void {
+    const mapWidth = size.col * this.cellSize;
+    const mapHeight = size.row * this.cellSize;
+
+    const me = myPlayerId ? data.players[myPlayerId] : undefined;
+    const centerX = me ? (me.x + 1.5) * this.cellSize : mapWidth / 2;
+    const centerY = me ? (me.y + 1.5) * this.cellSize : mapHeight / 2;
+
+    // Rounded to a whole pixel — a fractional translate() would blur every
+    // crisp 1px cell border via anti-aliasing instead of landing on exact
+    // pixel boundaries like the original's untranslated grid did.
+    const cameraX = Math.round(clamp(centerX - this.width / 2, 0, Math.max(0, mapWidth - this.width)));
+    const cameraY = Math.round(clamp(centerY - this.height / 2, 0, Math.max(0, mapHeight - this.height)));
+
+    // Reset to the DPR scale (see resize()) before every frame — everything
+    // below keeps drawing in logical/CSS pixel coordinates on top of it.
+    this.context.setTransform(this.devicePixelRatio, 0, 0, this.devicePixelRatio, 0, 0);
+
+    // Letterboxing fallback for maps smaller than the viewport.
+    this.context.fillStyle = this.colors.background;
+    this.context.fillRect(0, 0, this.width, this.height);
+
+    this.context.save();
+    this.context.translate(-cameraX, -cameraY);
+
     this.context.drawImage(this.backgroundCanvas, 0, 0);
 
     this.renderWalls(data.walls);
@@ -116,7 +153,7 @@ export default class View {
 
     this.renderPlayField(data.playField, data.players);
 
-    this.renderPlayers(data.players, myPlayerId, data);
+    this.context.restore();
   }
 
   private renderWalls(walls: WallState[] | undefined): void {
@@ -130,8 +167,8 @@ export default class View {
   }
 
   private renderWallCell(x: number, y: number): void {
-    const xPos = x * this.cellSize;
-    const yPos = y * this.cellSize;
+    const xPos = x * this.cellSize + CELL_MARGIN;
+    const yPos = y * this.cellSize + CELL_MARGIN;
 
     this.context.fillStyle = '#4a2c17';
     this.context.fillRect(xPos, yPos, this.cellSize - 2, this.cellSize - 2);
@@ -157,8 +194,8 @@ export default class View {
   }
 
   private renderBrickCell(x: number, y: number): void {
-    const xPos = x * this.cellSize;
-    const yPos = y * this.cellSize;
+    const xPos = x * this.cellSize + CELL_MARGIN;
+    const yPos = y * this.cellSize + CELL_MARGIN;
 
     this.context.fillStyle = '#cc6633';
     this.context.fillRect(xPos, yPos, this.cellSize - 2, this.cellSize - 2);
@@ -174,8 +211,8 @@ export default class View {
   private renderBase(base: BaseState): void {
     if (!base || base.health <= 0) return;
 
-    const baseX = base.x * this.cellSize;
-    const baseY = base.y * this.cellSize;
+    const baseX = base.x * this.cellSize + CELL_MARGIN;
+    const baseY = base.y * this.cellSize + CELL_MARGIN;
     const baseSize = this.cellSize * 3;
 
     this.context.fillStyle = '#666666';
@@ -194,7 +231,15 @@ export default class View {
 
     for (let y = 0; y < playField.length; y++) {
       for (let x = 0; x < playField[y].length; x++) {
-        if (playField[y][x] === 1) {
+        const cell = playField[y][x];
+        if (cell === 2) {
+          // Bullet cell — always plain black, never looked up against a
+          // player's zone (see the GameRoom.ts comment on why bullets are
+          // stamped as 2, not 1).
+          this.renderFilledCell(x, y, false, now, null);
+          continue;
+        }
+        if (cell === 1) {
           let isInvulnerable = false;
           let playerColor: string | null = null;
 
@@ -225,8 +270,8 @@ export default class View {
     now = Date.now(),
     playerColor: string | null = null,
   ): void {
-    const xPos = x * this.cellSize;
-    const yPos = y * this.cellSize;
+    const xPos = x * this.cellSize + CELL_MARGIN;
+    const yPos = y * this.cellSize + CELL_MARGIN;
 
     let fillStyle = playerColor || this.colors.filled;
 
@@ -247,167 +292,5 @@ export default class View {
 
     this.context.fillStyle = fillStyle;
     this.context.fillRect(xPos + this.innerCellOffset, yPos + this.innerCellOffset, this.innerCellSize, this.innerCellSize);
-  }
-
-  private renderPlayers(players: Record<string, PlayerState>, myPlayerId: string | null, data: GameStateSnapshot): void {
-    const uiX = this.width - this.uiWidth;
-    const baseFont = this.uiFontSize;
-    const smallFont = Math.round(baseFont * 0.82);
-    const largeFont = Math.round(baseFont * 1.09);
-    const lineHeight = Math.round(smallFont * 1.25);
-
-    this.context.fillStyle = 'rgba(154, 166, 128, 0.95)';
-    this.context.fillRect(uiX, 0, this.uiWidth, this.height);
-
-    this.context.strokeStyle = 'rgba(0, 0, 0, 0.3)';
-    this.context.lineWidth = 2;
-    this.context.strokeRect(uiX, 0, this.uiWidth, this.height);
-
-    this.context.font = `${baseFont}px DS-Digital-Italic`;
-    this.context.fillStyle = this.colors.empty;
-
-    if (data && data.gameMode === 'coop') {
-      this.context.fillStyle = '#c20000';
-      this.context.fillText('CO-OP DEFENSE', uiX + 10, lineHeight);
-
-      this.context.fillStyle = this.colors.filled;
-      this.context.font = `${smallFont}px DS-Digital-Italic`;
-      this.context.fillText(`WAVE: ${data.wave || 1}`, uiX + 10, lineHeight * 2);
-      this.context.fillText(`ENEMIES: ${data.enemiesRemaining || 0}`, uiX + 10, lineHeight * 3);
-      this.context.fillText(`KILLED: ${data.enemiesKilled || 0}`, uiX + 10, lineHeight * 4);
-
-      if (data.base) {
-        const baseHealth = data.base.health > 0 ? 'OK' : 'DESTROYED';
-        const baseColor = data.base.health > 0 ? '#00AA00' : '#ff0000';
-        this.context.fillStyle = baseColor;
-        this.context.fillText(`BASE: ${baseHealth}`, uiX + 10, lineHeight * 5);
-      }
-
-      if (data.gameState === 'defeat') {
-        this.context.fillStyle = '#ff0000';
-        this.context.font = `${largeFont}px DS-Digital-Italic`;
-        this.context.fillText('GAME OVER', uiX + 10, lineHeight * 7);
-      } else if (data.gameState === 'victory') {
-        this.context.fillStyle = '#00AA00';
-        this.context.font = `${largeFont}px DS-Digital-Italic`;
-        this.context.fillText('VICTORY!', uiX + 10, lineHeight * 7);
-      }
-
-      this.context.fillStyle = this.colors.filled;
-      this.context.font = `${smallFont}px DS-Digital-Italic`;
-      let playerY = lineHeight * 9;
-      for (const playerId in players) {
-        const player = players[playerId];
-        if (player.isBot) continue;
-
-        const isMe = playerId === myPlayerId;
-        const prefix = isMe ? '► ' : '';
-        const lives = '♥'.repeat(player.lives || 1);
-        this.context.fillText(`${prefix}${player.name}: ${lives}`, uiX + 10, playerY);
-        playerY += lineHeight;
-      }
-
-      return;
-    }
-
-    this.context.fillStyle = this.colors.filled;
-    let countPlayers = 0;
-    let playerPosition = lineHeight;
-    const playersArray = Object.entries(players);
-
-    playersArray.sort((a, b) => b[1].score - a[1].score);
-
-    this.context.font = `${smallFont}px DS-Digital-Italic`;
-    for (let i = 0; i < playersArray.length; i++) {
-      const [playerId, player] = playersArray[i];
-      countPlayers++;
-      playerPosition += lineHeight;
-
-      const isMe = playerId === myPlayerId;
-      const isBot = player.isBot;
-      const isDead = !player.status;
-
-      let color = player.color || this.colors.filled;
-      if (isDead) {
-        color = '#888888';
-      }
-
-      this.context.fillStyle = color;
-
-      const prefix = isMe ? '► ' : isBot ? '[B] ' : '';
-      const status = isDead ? ' [DEAD]' : '';
-      const text = `${i + 1}: ${prefix}${player.name} - ${player.score}${status}`;
-
-      this.context.fillText(text, uiX + 10, playerPosition);
-    }
-
-    this.context.font = `${baseFont}px DS-Digital-Italic`;
-    this.context.fillStyle = this.colors.filled;
-    this.context.fillText('Players: ' + countPlayers, uiX + 10, Math.round(baseFont * 0.9));
-
-    if (countPlayers > 2) {
-      this.renderMiniMap(players, myPlayerId, uiX);
-    }
-  }
-
-  private renderMiniMap(players: Record<string, PlayerState>, myPlayerId: string | null, uiX: number): void {
-    const miniMapX = uiX + 20;
-    const miniMapY = Math.min(this.height - 220, 400);
-    const miniMapHeight = 250;
-    const miniMapWidth = 150;
-    const scale = miniMapHeight / size.col;
-
-    this.context.fillStyle = 'rgba(0, 0, 0, 0.15)';
-    this.context.fillRect(miniMapX, miniMapY, miniMapHeight, miniMapWidth);
-
-    this.context.strokeStyle = 'rgba(0, 0, 0, 0.5)';
-    this.context.lineWidth = 2;
-    this.context.strokeRect(miniMapX, miniMapY, miniMapHeight, miniMapWidth);
-
-    for (const playerId in players) {
-      const player = players[playerId];
-      if (!player.status) continue;
-
-      const isMe = playerId === myPlayerId;
-      const x = miniMapX + player.x * scale;
-      const y = miniMapY + player.y * scale;
-
-      this.context.fillStyle = player.color || (isMe ? '#00AA00' : player.isBot ? '#FF4444' : '#4ECDC4');
-      this.context.beginPath();
-      this.context.arc(x + scale, y + scale, isMe ? 5 : 3, 0, Math.PI * 2);
-      this.context.fill();
-
-      let dirX = 0;
-      let dirY = 0;
-      switch (player.position) {
-        case 'top':
-          dirY = -8;
-          break;
-        case 'bottom':
-          dirY = 8;
-          break;
-        case 'left':
-          dirX = 8;
-          break;
-        case 'right':
-          dirX = -8;
-          break;
-      }
-
-      if (dirX || dirY) {
-        this.context.strokeStyle = this.context.fillStyle as string;
-        this.context.lineWidth = 2;
-        this.context.beginPath();
-        this.context.moveTo(x + scale, y + scale);
-        this.context.lineTo(x + scale + dirX, y + scale + dirY);
-        this.context.stroke();
-      }
-    }
-
-    const smallFont = Math.round(this.uiFontSize * 0.82);
-    this.context.fillStyle = this.colors.filled;
-    this.context.font = `${smallFont}px DS-Digital-Italic`;
-    this.context.fillText('Mini Map', miniMapX, miniMapY - 10);
-    this.context.font = `${this.uiFontSize}px DS-Digital-Italic`;
   }
 }

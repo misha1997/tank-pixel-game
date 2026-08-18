@@ -7,6 +7,7 @@ type Tool = 'wall' | 'brick' | 'base' | 'spawn' | 'erase';
 
 const CELL_SIZE = 16;
 const MAX_ENEMY_SPAWNS = 6;
+const PAINT_TOOLS: ReadonlySet<Tool> = new Set(['wall', 'brick', 'erase']);
 
 const COLORS: Record<'empty' | 'wall' | 'brick' | 'base' | 'spawn' | 'grid', string> = {
   empty: '#9aa680',
@@ -22,6 +23,9 @@ let base: MapCell | null = null;
 let enemySpawns: MapCell[] = [];
 let mode: GameMode = 'pvp';
 let tool: Tool = 'wall';
+let zoom = 1;
+let painting = false;
+let hoverCell: MapCell | null = null;
 let wired = false;
 
 function key(x: number, y: number): string {
@@ -52,6 +56,30 @@ function updateCoopToolVisibility(): void {
     tool = 'wall';
     toolGroup.querySelectorAll('button').forEach((b) => b.classList.toggle('selected', b.dataset.value === 'wall'));
   }
+}
+
+function applyZoom(canvas: HTMLCanvasElement): void {
+  canvas.style.width = `${canvas.width * zoom}px`;
+  canvas.style.height = `${canvas.height * zoom}px`;
+}
+
+function updateStats(): void {
+  const wallCount = [...cells.values()].filter((t) => t === 'wall').length;
+  const brickCount = cells.size - wallCount;
+
+  const statsEl = document.getElementById('editor-stats') as HTMLElement;
+  statsEl.textContent = mode === 'coop' ? `Walls: ${wallCount} · Bricks: ${brickCount} · Spawns: ${enemySpawns.length}/${MAX_ENEMY_SPAWNS}` : `Walls: ${wallCount}`;
+  statsEl.classList.remove('editor-info--warn');
+
+  if (mode === 'coop' && !base) {
+    statsEl.textContent += ' · Base not placed yet';
+    statsEl.classList.add('editor-info--warn');
+  }
+}
+
+function updateCoords(): void {
+  const coordsEl = document.getElementById('editor-coords') as HTMLElement;
+  coordsEl.textContent = hoverCell ? `x: ${hoverCell.x}, y: ${hoverCell.y}` : '';
 }
 
 function render(): void {
@@ -92,6 +120,50 @@ function render(): void {
     ctx.arc(spawn.x * CELL_SIZE + CELL_SIZE / 2, spawn.y * CELL_SIZE + CELL_SIZE / 2, CELL_SIZE / 2 - 2, 0, Math.PI * 2);
     ctx.fill();
   }
+
+  if (hoverCell) {
+    const isBaseTool = tool === 'base';
+    const span = isBaseTool ? 3 : 1;
+    ctx.strokeStyle = '#f0b429';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(hoverCell.x * CELL_SIZE + 1, hoverCell.y * CELL_SIZE + 1, CELL_SIZE * span - 2, CELL_SIZE * span - 2);
+  }
+
+  updateStats();
+}
+
+function cellFromEvent(canvas: HTMLCanvasElement, event: MouseEvent): MapCell | null {
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.floor(((event.clientX - rect.left) / rect.width) * size.col);
+  const y = Math.floor(((event.clientY - rect.top) / rect.height) * size.row);
+  if (x < 0 || x >= size.col || y < 0 || y >= size.row) return null;
+  return { x, y };
+}
+
+function applyTool(activeTool: Tool, x: number, y: number): void {
+  switch (activeTool) {
+    case 'wall':
+      cells.set(key(x, y), 'wall');
+      break;
+    case 'brick':
+      cells.set(key(x, y), 'brick');
+      break;
+    case 'erase':
+      cells.delete(key(x, y));
+      break;
+    case 'base':
+      base = { x, y };
+      break;
+    case 'spawn': {
+      const existingIndex = enemySpawns.findIndex((p) => p.x === x && p.y === y);
+      if (existingIndex >= 0) {
+        enemySpawns.splice(existingIndex, 1);
+      } else if (enemySpawns.length < MAX_ENEMY_SPAWNS) {
+        enemySpawns.push({ x, y });
+      }
+      break;
+    }
+  }
 }
 
 function resetState(): void {
@@ -100,6 +172,8 @@ function resetState(): void {
   enemySpawns = [];
   mode = 'pvp';
   tool = 'wall';
+  zoom = 1;
+  hoverCell = null;
 
   (document.getElementById('editor-name') as HTMLInputElement).value = '';
 
@@ -112,9 +186,13 @@ function resetState(): void {
   const toolGroup = document.getElementById('editor-tool') as HTMLElement;
   toolGroup.querySelectorAll('button').forEach((b) => b.classList.toggle('selected', b.dataset.value === 'wall'));
 
+  const zoomGroup = document.getElementById('editor-zoom') as HTMLElement;
+  zoomGroup.querySelectorAll('button').forEach((b) => b.classList.toggle('selected', b.dataset.value === '1'));
+
   (document.getElementById('editor-error') as HTMLElement).textContent = '';
 
   updateCoopToolVisibility();
+  updateCoords();
 }
 
 function wireOnce(): void {
@@ -122,6 +200,8 @@ function wireOnce(): void {
   const modeGroup = document.getElementById('editor-mode') as HTMLElement;
   const visibilityGroup = document.getElementById('editor-visibility') as HTMLElement;
   const toolGroup = document.getElementById('editor-tool') as HTMLElement;
+  const zoomGroup = document.getElementById('editor-zoom') as HTMLElement;
+  const clearBtn = document.getElementById('editor-clear-btn') as HTMLButtonElement;
   const saveBtn = document.getElementById('editor-save-btn') as HTMLButtonElement;
   const backBtn = document.getElementById('editor-back-btn') as HTMLButtonElement;
   const nameInput = document.getElementById('editor-name') as HTMLInputElement;
@@ -129,14 +209,15 @@ function wireOnce(): void {
 
   canvas.width = size.col * CELL_SIZE;
   canvas.height = size.row * CELL_SIZE;
+  canvas.oncontextmenu = (event) => event.preventDefault();
 
   wireToggleGroup(modeGroup, (value) => {
     mode = value as GameMode;
     if (mode === 'pvp') {
       base = null;
       enemySpawns = [];
-      for (const [cellKey, type] of [...cells]) {
-        if (type === 'brick') cells.delete(cellKey);
+      for (const [cellKey, cellType] of [...cells]) {
+        if (cellType === 'brick') cells.delete(cellKey);
       }
     }
     updateCoopToolVisibility();
@@ -145,41 +226,55 @@ function wireOnce(): void {
   wireToggleGroup(visibilityGroup, () => {});
   wireToggleGroup(toolGroup, (value) => {
     tool = value as Tool;
+    render();
+  });
+  wireToggleGroup(zoomGroup, (value) => {
+    zoom = Number(value) || 1;
+    applyZoom(canvas);
   });
 
-  canvas.addEventListener('click', (event) => {
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.floor(((event.clientX - rect.left) / rect.width) * size.col);
-    const y = Math.floor(((event.clientY - rect.top) / rect.height) * size.row);
-    if (x < 0 || x >= size.col || y < 0 || y >= size.row) return;
+  canvas.addEventListener('mousedown', (event) => {
+    const cell = cellFromEvent(canvas, event);
+    if (!cell) return;
 
-    switch (tool) {
-      case 'wall':
-        cells.set(key(x, y), 'wall');
-        break;
-      case 'brick':
-        cells.set(key(x, y), 'brick');
-        break;
-      case 'erase':
-        cells.delete(key(x, y));
-        break;
-      case 'base':
-        base = { x, y };
-        break;
-      case 'spawn': {
-        const existingIndex = enemySpawns.findIndex((p) => p.x === x && p.y === y);
-        if (existingIndex >= 0) {
-          enemySpawns.splice(existingIndex, 1);
-        } else if (enemySpawns.length < MAX_ENEMY_SPAWNS) {
-          enemySpawns.push({ x, y });
-        }
-        break;
+    const activeTool: Tool = event.button === 2 ? 'erase' : tool;
+    applyTool(activeTool, cell.x, cell.y);
+    if (PAINT_TOOLS.has(activeTool)) painting = true;
+    render();
+  });
+
+  canvas.addEventListener('mousemove', (event) => {
+    const cell = cellFromEvent(canvas, event);
+    hoverCell = cell;
+    updateCoords();
+
+    if (painting && cell) {
+      const activeTool: Tool = event.buttons === 2 ? 'erase' : tool;
+      if (PAINT_TOOLS.has(activeTool)) {
+        applyTool(activeTool, cell.x, cell.y);
       }
     }
     render();
   });
 
+  canvas.addEventListener('mouseleave', () => {
+    hoverCell = null;
+    updateCoords();
+    render();
+  });
+
+  window.addEventListener('mouseup', () => {
+    painting = false;
+  });
+
   backBtn.addEventListener('click', () => navigate('/'));
+
+  clearBtn.addEventListener('click', () => {
+    cells = new Map();
+    base = null;
+    enemySpawns = [];
+    render();
+  });
 
   saveBtn.addEventListener('click', async () => {
     errorBox.textContent = '';
@@ -225,6 +320,7 @@ export function showMapEditor(): void {
   }
 
   resetState();
+  applyZoom(document.getElementById('editor-canvas') as HTMLCanvasElement);
   document.getElementById('editor-overlay')?.classList.remove('hidden');
   render();
 }

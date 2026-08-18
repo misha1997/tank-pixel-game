@@ -26,6 +26,14 @@ export interface BotMemory {
   lastMove?: { dx: number; dy: number; pos: string };
   lastTarget?: { x: number; y: number };
   target?: string;
+
+  // Cached BFS route (see BotAI.findPath/planPursuit) so bots don't re-plan
+  // a full pathfind every single AI tick — only when the goal drifts, the
+  // route runs out, or it goes stale.
+  path?: { x: number; y: number }[];
+  pathGoalX?: number;
+  pathGoalY?: number;
+  pathComputedAt?: number;
 }
 
 // Per-room mutable game data. One instance per GameRoom — this is what used to be

@@ -1,6 +1,6 @@
 import type { AuthUser, BotDifficulty, GameMode, RoomSummary, RoomVisibility } from '@tank/shared';
 import { socket } from './socket.js';
-import { fetchMaps } from './maps.js';
+import { fetchMaps, fetchMyMaps, deleteMap } from './maps.js';
 import { navigate } from './router.js';
 
 let currentAccount: AuthUser | null = null;
@@ -97,6 +97,64 @@ function renderRooms(rooms: RoomSummary[]): void {
   }
 }
 
+async function refreshMyMaps(): Promise<void> {
+  const listEl = document.getElementById('lobby-my-maps-list') as HTMLElement;
+  if (!currentAccount) {
+    listEl.replaceChildren();
+    const note = document.createElement('div');
+    note.className = 'lobby-empty';
+    note.textContent = 'Log in to save and manage your own maps.';
+    listEl.appendChild(note);
+    return;
+  }
+
+  const maps = await fetchMyMaps();
+  listEl.replaceChildren();
+
+  if (maps.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'lobby-empty';
+    empty.textContent = 'No maps yet — open the editor to build one.';
+    listEl.appendChild(empty);
+    return;
+  }
+
+  for (const map of maps) {
+    const row = document.createElement('div');
+    row.className = 'lobby-room-row lobby-map-row';
+
+    const name = document.createElement('span');
+    name.className = 'lobby-room-name';
+    name.textContent = map.name;
+
+    const mode = document.createElement('span');
+    mode.className = 'lobby-room-mode';
+    mode.textContent = map.mode === 'coop' ? 'Co-op' : 'PvP';
+
+    const visibility = document.createElement('span');
+    visibility.className = 'lobby-room-mode';
+    visibility.textContent = map.visibility === 'private' ? 'Private' : 'Public';
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'lobby-delete-btn';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.addEventListener('click', async () => {
+      deleteBtn.disabled = true;
+      const ok = await deleteMap(map.id);
+      if (ok) {
+        refreshMyMaps();
+        refreshMapOptions();
+      } else {
+        deleteBtn.disabled = false;
+      }
+    });
+
+    row.append(name, mode, visibility, deleteBtn);
+    listEl.appendChild(row);
+  }
+}
+
 function wireOnce(): void {
   const createForm = document.getElementById('lobby-create-form') as HTMLFormElement;
   const createNameInput = document.getElementById('lobby-create-name') as HTMLInputElement;
@@ -104,7 +162,7 @@ function wireOnce(): void {
   const createVisibilityGroup = document.getElementById('lobby-create-visibility') as HTMLElement;
   const createMapSelect = document.getElementById('lobby-create-map') as HTMLSelectElement;
   const createDifficultyGroup = document.getElementById('lobby-create-difficulty') as HTMLElement;
-  const botFillInput = document.getElementById('lobby-bot-fill') as HTMLInputElement;
+  const botFillSelect = document.getElementById('lobby-bot-fill') as HTMLSelectElement;
   const joinForm = document.getElementById('lobby-join-form') as HTMLFormElement;
   const joinCodeInput = document.getElementById('lobby-join-code') as HTMLInputElement;
   const errorBox = document.getElementById('lobby-error') as HTMLElement;
@@ -131,7 +189,7 @@ function wireOnce(): void {
     const visibility = (selectedToggle(createVisibilityGroup) || 'public') as RoomVisibility;
     const mapId = createMapSelect.value || undefined;
     const botDifficulty = (selectedToggle(createDifficultyGroup) || 'normal') as BotDifficulty;
-    const botFillTarget = mode === 'pvp' ? Number(botFillInput.value) || 0 : undefined;
+    const botFillTarget = mode === 'pvp' ? Number(botFillSelect.value) || 0 : undefined;
 
     socket.emit('lobby:create', { name, mode, visibility, mapId, botDifficulty, botFillTarget }, (result) => {
       if (!result.ok) {
@@ -159,15 +217,14 @@ export function showLobby(account: AuthUser | null): void {
   }
 
   const overlay = document.getElementById('lobby-overlay') as HTMLElement;
-  const accountStatus = document.getElementById('lobby-account-status') as HTMLElement;
   const errorBox = document.getElementById('lobby-error') as HTMLElement;
 
-  accountStatus.textContent = account ? `Playing as ${account.username}` : 'Playing as Guest';
   errorBox.textContent = '';
   overlay.classList.remove('hidden');
 
   updateBotFillVisibility();
   refreshMapOptions();
+  refreshMyMaps();
 
   socket.on('lobby:rooms', renderRooms);
   socket.emit('lobby:subscribe');

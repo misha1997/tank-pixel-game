@@ -4,8 +4,8 @@ import View from './view.js';
 import { showMenu, hideMenu, type StartGamePayload } from './menu.js';
 import { initAuth } from './auth.js';
 import { showLobby, hideLobby } from './lobby.js';
-import { showRoster, hideRoster } from './roster.js';
 import { showChat, hideChat, isTypingIntoField } from './chat.js';
+import { showMatchHud, hideMatchHud, updateMatchHud, showRankCard, hideRankCard } from './hud.js';
 import { showMapEditor, hideMapEditor } from './mapEditor.js';
 import { showLeaderboard, hideLeaderboard } from './leaderboard.js';
 import { registerRoute, navigate, startRouter, currentGeneration } from './router.js';
@@ -37,6 +37,8 @@ let renderedFrames = 0;
 
 function startMatch(payload: StartGamePayload, room: RoomSummary, account: AuthUser | null): void {
   view = new View(root);
+  showMatchHud(room);
+  showRankCard(account);
   socket.emit('new player', {
     name: payload.name,
     color: payload.color,
@@ -78,7 +80,6 @@ function setupRoutes(account: AuthUser | null): void {
       }
 
       joinedRoom = result.room;
-      showRoster(result.room);
       showChat();
       showMenu(account, result.room, (payload) => startMatch(payload, result.room, account));
     });
@@ -87,9 +88,10 @@ function setupRoutes(account: AuthUser | null): void {
       if (joinedRoom) {
         socket.emit('room:leave');
       }
-      hideRoster();
       hideChat();
       hideMenu();
+      hideMatchHud();
+      hideRankCard();
       view = null;
       lastState = null;
       root.replaceChildren();
@@ -242,6 +244,7 @@ setInterval(() => {
 
 socket.on('state', (data) => {
   lastState = data;
+  updateMatchHud(data, myPlayerId);
 });
 
 socket.on('game mode', (data) => {

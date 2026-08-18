@@ -13,9 +13,11 @@ export const BULLET_POOL_SIZE = 100;
 
 // Kept at a 5:3 ratio (matching the original 50x30) so the client minimap's
 // fixed-aspect box still maps 1:1 without special-casing — see view.ts.
+// The arena is bigger than the viewport now — the client camera (view.ts)
+// follows the local player and only ever shows a window onto this grid.
 export const size = {
-  col: 60,
-  row: 36,
+  col: 100,
+  row: 60,
 };
 
 export const positionPiece: Record<TankAnimState, number[][]> = {
@@ -37,11 +39,17 @@ export interface BulletDirectionConfig {
 
 // position 'left' = tank looks RIGHT (gun on right), shoots right
 // position 'right' = tank looks LEFT (gun on left), shoots left
+//
+// offsetX/offsetY must land one cell *outside* the 3x3 positionPiece body
+// in the direction of travel — not on one of the piece's own filled cells.
+// A bullet spawned on top of the tank's own muzzle cell gets stamped into
+// playField as a bullet (2) that tick, painting over that cell instead of
+// the tank's color for a frame (see GameRoom.ts's playField comment).
 export const bulletDirections: Record<'top' | 'bottom' | 'left' | 'right', BulletDirectionConfig> = {
-  top: { dir: 'up', dx: 0, dy: -1, offsetX: 1, offsetY: 0 },
-  bottom: { dir: 'down', dx: 0, dy: 1, offsetX: 1, offsetY: 2 },
+  top: { dir: 'up', dx: 0, dy: -1, offsetX: 1, offsetY: -1 },
+  bottom: { dir: 'down', dx: 0, dy: 1, offsetX: 1, offsetY: 3 },
   left: { dir: 'right', dx: 1, dy: 0, offsetX: 3, offsetY: 1 },
-  right: { dir: 'left', dx: -1, dy: 0, offsetX: 0, offsetY: 1 },
+  right: { dir: 'left', dx: -1, dy: 0, offsetX: -1, offsetY: 1 },
 };
 
 export const MAX_COOP_BOTS = 4;

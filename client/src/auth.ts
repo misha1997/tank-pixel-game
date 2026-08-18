@@ -14,13 +14,22 @@ export async function logout(): Promise<void> {
 
 export async function initAuth(onReady: (account: AuthUser | null) => void): Promise<void> {
   const overlay = document.getElementById('auth-overlay') as HTMLElement;
+  const preloader = document.getElementById('preloader') as HTMLElement;
 
-  const existing = await fetchCurrentUser();
+  let existing: AuthUser | null = null;
+  try {
+    existing = await fetchCurrentUser();
+  } catch {
+    existing = null;
+  }
+  preloader.classList.add('hidden');
+
   if (existing) {
-    overlay.classList.add('hidden');
     onReady(existing);
     return;
   }
+
+  overlay.classList.remove('hidden');
 
   const tabButtons = document.querySelectorAll<HTMLButtonElement>('.auth-tab-btn');
   const form = document.getElementById('auth-form') as HTMLFormElement;
