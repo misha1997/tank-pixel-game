@@ -55,6 +55,7 @@ function leaveCurrentRoom(socketId: string): void {
   const leavingName = room.state.players[socketId]?.name;
   room.removePlayer(socketId);
   socketRooms.delete(socketId);
+  io.sockets.sockets.get(socketId)?.leave(room.id);
   if (leavingName) room.broadcastSystemMessage(`${leavingName} left the battle`);
   roomManager.broadcastRoster(room);
   roomManager.broadcastLobby();

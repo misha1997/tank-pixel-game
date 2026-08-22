@@ -34,73 +34,76 @@ function buildPvpArenaMap(): MapDefinition {
   return { walls, bricks: [] };
 }
 
+// Same layout as the original 50x30-era map, uniformly scaled 2x to match
+// the current 100x60 arena (shared/src/constants.ts `size`) — otherwise the
+// whole defense funnel sat balled up in one corner of the much bigger grid.
 function buildCoopDefenseMap(): MapDefinition {
   const walls: MapCell[] = [];
   const bricks: MapCell[] = [];
-  const base = { x: 24, y: 26 };
+  const base = { x: 48, y: 52 };
 
   // Concrete walls (indestructible) - borders and obstacles
   // Top wall
-  for (let x = 5; x < 45; x++) {
-    if (x < 20 || x > 29) walls.push({ x, y: 3 });
+  for (let x = 10; x < 90; x++) {
+    if (x < 40 || x > 58) walls.push({ x, y: 6 });
   }
 
   // Side walls
-  for (let y = 3; y < 15; y++) {
-    walls.push({ x: 5, y });
-    walls.push({ x: 44, y });
+  for (let y = 6; y < 30; y++) {
+    walls.push({ x: 10, y });
+    walls.push({ x: 88, y });
   }
 
   // Central obstacle (concrete)
-  for (let x = 20; x <= 29; x++) {
-    walls.push({ x, y: 10 });
+  for (let x = 40; x <= 58; x++) {
+    walls.push({ x, y: 20 });
   }
-  for (let y = 8; y <= 12; y++) {
-    walls.push({ x: 22, y });
-    walls.push({ x: 27, y });
+  for (let y = 16; y <= 24; y++) {
+    walls.push({ x: 44, y });
+    walls.push({ x: 54, y });
   }
 
   // Side obstacles (concrete)
-  for (let y = 6; y < 10; y++) {
-    walls.push({ x: 10, y });
-    walls.push({ x: 39, y });
+  for (let y = 12; y < 20; y++) {
+    walls.push({ x: 20, y });
+    walls.push({ x: 78, y });
   }
 
   // Brick walls (destructible) - base protection
   // Top protection line
-  for (let x = base.x - 2; x <= base.x + 4; x++) {
-    bricks.push({ x, y: base.y - 2 });
+  for (let x = base.x - 4; x <= base.x + 8; x++) {
+    bricks.push({ x, y: base.y - 4 });
   }
 
   // Side protection walls
-  for (let y = base.y - 2; y <= base.y + 2; y++) {
-    bricks.push({ x: base.x - 2, y });
-    bricks.push({ x: base.x + 4, y });
+  for (let y = base.y - 4; y <= base.y + 4; y++) {
+    bricks.push({ x: base.x - 4, y });
+    bricks.push({ x: base.x + 8, y });
   }
 
   // Additional brick obstacles on map
   // Left flank
-  for (let y = 15; y < 20; y++) {
-    bricks.push({ x: 8, y });
-    bricks.push({ x: 12, y });
+  for (let y = 30; y < 40; y++) {
+    bricks.push({ x: 16, y });
+    bricks.push({ x: 24, y });
   }
 
   // Right flank
-  for (let y = 15; y < 20; y++) {
-    bricks.push({ x: 37, y });
-    bricks.push({ x: 41, y });
+  for (let y = 30; y < 40; y++) {
+    bricks.push({ x: 74, y });
+    bricks.push({ x: 82, y });
   }
 
   // Central obstacles
-  for (let x = 18; x <= 31; x += 2) {
-    bricks.push({ x, y: 15 });
+  for (let x = 36; x <= 62; x += 4) {
+    bricks.push({ x, y: 30 });
   }
 
   const enemySpawnPoints: MapCell[] = [
-    { x: 10, y: 4 },
-    { x: 39, y: 4 },
-    { x: 12, y: 13 },
-    { x: 37, y: 13 },
+    { x: 20, y: 8 },
+    { x: 78, y: 8 },
+    { x: 24, y: 26 },
+    { x: 74, y: 26 },
   ];
 
   return { walls, bricks, base, enemySpawnPoints };

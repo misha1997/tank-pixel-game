@@ -64,6 +64,20 @@ export interface RoomState {
 
   walls: WallState[];
   enemySpawnPoints: MapCell[];
+
+  // Bounding box of the current map's actual layout (walls/bricks/base/spawn
+  // points), padded a few cells. The arena grid (shared `size`) is much
+  // bigger than any hand-built map, so without this, coop respawns and the
+  // enemy-spawn fallback would scatter across mostly-empty grid far from the
+  // map's real play area instead of staying on it. Null outside coop.
+  mapBounds: MapBounds | null;
+}
+
+export interface MapBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
 }
 
 export function createInitialRoomState(mode: GameMode): RoomState {
@@ -78,7 +92,7 @@ export function createInitialRoomState(mode: GameMode): RoomState {
     gameState: 'waiting',
 
     bricks: [],
-    base: { x: 24, y: 26, type: 'base', health: 1 },
+    base: { x: 48, y: 52, type: 'base', health: 1 },
     coopWave: 1,
     enemiesToSpawn: 0,
     enemiesKilled: 0,
@@ -93,6 +107,7 @@ export function createInitialRoomState(mode: GameMode): RoomState {
 
     walls: [],
     enemySpawnPoints: [],
+    mapBounds: null,
   };
 }
 

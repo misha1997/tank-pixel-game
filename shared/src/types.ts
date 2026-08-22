@@ -131,8 +131,11 @@ export interface MapCell {
   y: number;
 }
 
-// Grid is always the standard 50x30 arena (shared/src/constants.ts `size`) —
-// variable map sizes are a Stage 8 (fullscreen scaling) concern, not this one.
+// Cells are placed within the shared arena grid (shared/src/constants.ts
+// `size`), but a map's own layout can occupy any sub-region of it — coop
+// (server/src/rooms/MapGenerator.ts computeMapBounds) derives that region's
+// bounding box from these cells to keep respawns/enemy spawns on the map
+// instead of scattered across the full grid.
 export interface MapDefinition {
   walls: MapCell[];
   bricks: MapCell[];

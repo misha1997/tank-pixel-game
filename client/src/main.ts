@@ -6,6 +6,7 @@ import { initAuth } from './auth.js';
 import { showLobby, hideLobby } from './lobby.js';
 import { showChat, hideChat, isTypingIntoField } from './chat.js';
 import { showMatchHud, hideMatchHud, updateMatchHud, showRankCard, hideRankCard } from './hud.js';
+import { showMatchModal, hideMatchModal } from './matchModal.js';
 import { showMapEditor, hideMapEditor } from './mapEditor.js';
 import { showLeaderboard, hideLeaderboard } from './leaderboard.js';
 import { registerRoute, navigate, startRouter, currentGeneration } from './router.js';
@@ -92,6 +93,7 @@ function setupRoutes(account: AuthUser | null): void {
       hideMenu();
       hideMatchHud();
       hideRankCard();
+      hideMatchModal();
       view = null;
       lastState = null;
       root.replaceChildren();
@@ -257,19 +259,29 @@ socket.on('brick destroyed', (data) => {
 
 socket.on('base hit', (data) => {
   console.log('Base hit! Health:', data.health);
-  if (data.health <= 0) {
-    alert('BASE DESTROYED! Game Over!');
-  }
+  // No modal here for a 0-health hit — the server always follows up with
+  // 'game over', which is where the defeat modal is shown.
 });
 
 socket.on('wave complete', (data) => {
   console.log('Wave', data.wave, 'completed!');
-  alert(`Wave ${data.wave} completed! Get ready for the next wave!`);
+  showMatchModal({
+    variant: 'victory',
+    kicker: 'WAVE CLEARED',
+    title: `WAVE ${data.wave} COMPLETE!`,
+    body: 'Get ready — the next wave is inbound...',
+    autoCloseMs: 3500,
+  });
 });
 
 socket.on('game over', (data) => {
   console.log('Game Over:', data);
-  alert(`GAME OVER!\nWave: ${data.wave}\nEnemies killed: ${data.kills}`);
+  showMatchModal({
+    variant: 'defeat',
+    kicker: 'BASE DESTROYED',
+    title: 'GAME OVER',
+    body: `Survived to wave ${data.wave} — ${data.kills} enemies destroyed.`,
+  });
 });
 
 socket.io.on('reconnect', () => {

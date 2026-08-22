@@ -73,10 +73,16 @@ export class CoopManager {
     }
 
     if (!spawn) {
+      const bounds = state.mapBounds;
+      const minX = bounds?.minX ?? 5;
+      const minY = bounds?.minY ?? 3;
+      const spanX = bounds ? bounds.maxX - bounds.minX + 1 : 40;
+      const spanY = bounds ? bounds.maxY - bounds.minY + 1 : 12;
+
       let attempts = 0;
       while (attempts < 20) {
-        const x = 5 + randomInteger(40);
-        const y = 3 + randomInteger(12);
+        const x = minX + randomInteger(spanX);
+        const y = minY + randomInteger(spanY);
 
         let valid = true;
         for (const wall of state.walls) {

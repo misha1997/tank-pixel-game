@@ -1298,6 +1298,80 @@ canvas {
 }
 
 /* ============================================================
+   Match result modal (wave complete / victory / defeat)
+   ============================================================ */
+#match-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 2100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10, 9, 6, .72);
+    animation: fadeIn 0.25s ease;
+}
+
+#match-modal.hidden {
+    display: none;
+}
+
+.match-modal-box {
+    width: min(420px, 88vw);
+    text-align: center;
+    border: 13px solid transparent;
+    border-image: var(--img-frame-wood) 16 repeat;
+    background: var(--panel-dark);
+    padding: clamp(20px, 4vh, 34px) clamp(18px, 4vw, 32px);
+    animation: slideIn 0.35s ease;
+}
+
+.match-modal-kicker {
+    font-family: 'Silkscreen', monospace;
+    font-size: 11px;
+    letter-spacing: .18em;
+    color: var(--gold);
+    text-shadow: 2px 2px 0 var(--ink);
+    margin-bottom: 8px;
+}
+
+.match-modal-kicker:empty {
+    display: none;
+}
+
+.match-modal-title {
+    font-family: 'Silkscreen', monospace;
+    font-weight: 700;
+    font-size: clamp(24px, 4.5vw, 38px);
+    letter-spacing: .06em;
+    color: #7ee787;
+    text-shadow:
+        2px 0 0 var(--ink), -2px 0 0 var(--ink),
+        0 2px 0 var(--ink), 0 -2px 0 var(--ink),
+        4px 4px 0 rgba(23, 23, 15, .35);
+}
+
+.match-modal--defeat .match-modal-title {
+    color: #ff8080;
+}
+
+.match-modal--defeat .match-modal-kicker {
+    color: var(--danger);
+}
+
+.match-modal-body {
+    font-family: 'Pixelify Sans', Arial, sans-serif;
+    font-size: clamp(12px, 1.6vw, 15px);
+    color: #d8d4c8;
+    text-shadow: 2px 2px 0 rgba(0, 0, 0, .6);
+    margin: 12px 0 22px;
+    line-height: 1.5;
+}
+
+.match-modal-box .btn-start {
+    padding: 8px clamp(22px, 4vw, 34px);
+}
+
+/* ============================================================
    Animations
    ============================================================ */
 @keyframes fadeIn {

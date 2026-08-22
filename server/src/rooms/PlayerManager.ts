@@ -19,12 +19,18 @@ export class PlayerManager {
 
   getSafeSpawnPosition(): { x: number; y: number } {
     const { state } = this;
+    const bounds = state.mapBounds;
+    const minX = bounds?.minX ?? 0;
+    const minY = bounds?.minY ?? 0;
+    const spanX = (bounds ? bounds.maxX - bounds.minX : size.col - 3) + 1;
+    const spanY = (bounds ? bounds.maxY - bounds.minY : size.row - 3) + 1;
+
     let attempts = 0;
     const maxAttempts = 50;
 
     while (attempts < maxAttempts) {
-      const x = randomInteger(size.col - 3);
-      const y = randomInteger(size.row - 3);
+      const x = minX + randomInteger(spanX);
+      const y = minY + randomInteger(spanY);
 
       let inWall = false;
       for (const pos of FACINGS) {
@@ -53,7 +59,7 @@ export class PlayerManager {
       attempts++;
     }
 
-    return { x: randomInteger(size.col - 3), y: randomInteger(size.row - 3) };
+    return { x: minX + randomInteger(spanX), y: minY + randomInteger(spanY) };
   }
 
   movePlayer(playerId: string, dx: number, dy: number, position: TankFacing): void {
