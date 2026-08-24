@@ -71,6 +71,8 @@ export function showChat(): void {
   const panel = document.getElementById('chat-panel') as HTMLElement;
   const log = document.getElementById('chat-log') as HTMLElement;
   panel.classList.remove('hidden');
+  // Mobile dock mirrors the sidebar panel's visibility.
+  document.getElementById('chat-dock')?.classList.remove('hidden');
   log.replaceChildren();
 
   if (!wired) {
@@ -102,6 +104,8 @@ export function hideChat(): void {
   active = false;
   const panel = document.getElementById('chat-panel') as HTMLElement;
   panel.classList.add('hidden');
+  document.getElementById('chat-dock')?.classList.add('hidden');
+  document.getElementById('chat-dock')?.classList.remove('collapsed');
   (document.getElementById('chat-log') as HTMLElement).replaceChildren();
 }
 

@@ -1,6 +1,7 @@
 import { size } from '@tank/shared';
-import type { AuthUser, GameStateSnapshot, RoomSummary } from '@tank/shared';
+import type { ArenaLayout, AuthUser, GameStateSnapshot, RoomSummary } from '@tank/shared';
 import { navigate } from './router.js';
+import { showSettingsModal } from './settingsModal.js';
 
 let wired = false;
 
@@ -81,7 +82,7 @@ function renderPvpStatus(body: HTMLElement, data: GameStateSnapshot, myPlayerId:
   body.appendChild(roster);
 }
 
-function drawMinimap(data: GameStateSnapshot, myPlayerId: string | null): void {
+function drawMinimap(data: GameStateSnapshot, arena: ArenaLayout | null, myPlayerId: string | null): void {
   const canvas = document.getElementById('minimap-canvas') as HTMLCanvasElement | null;
   if (!canvas) return;
 
@@ -101,15 +102,13 @@ function drawMinimap(data: GameStateSnapshot, myPlayerId: string | null): void {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   ctx.fillStyle = '#b45a2a';
-  for (const wall of data.walls) {
+  for (const wall of arena?.walls ?? []) {
     ctx.fillRect(wall.x * scaleX, wall.y * scaleY, Math.max(2, scaleX), Math.max(2, scaleY));
   }
 
-  if (data.bricks) {
+  for (const brick of arena?.bricks ?? []) {
     ctx.fillStyle = '#cc6633';
-    for (const brick of data.bricks) {
-      if (brick.health > 0) ctx.fillRect(brick.x * scaleX, brick.y * scaleY, Math.max(2, scaleX), Math.max(2, scaleY));
-    }
+    if (brick.health > 0) ctx.fillRect(brick.x * scaleX, brick.y * scaleY, Math.max(2, scaleX), Math.max(2, scaleY));
   }
 
   if (data.base && data.base.health > 0) {
@@ -140,7 +139,7 @@ function drawMinimap(data: GameStateSnapshot, myPlayerId: string | null): void {
   }
 }
 
-export function updateMatchHud(data: GameStateSnapshot, myPlayerId: string | null): void {
+export function updateMatchHud(data: GameStateSnapshot, arena: ArenaLayout | null, myPlayerId: string | null): void {
   const body = document.getElementById('match-status-body');
   if (body) {
     body.replaceChildren();
@@ -151,23 +150,25 @@ export function updateMatchHud(data: GameStateSnapshot, myPlayerId: string | nul
     }
   }
 
-  drawMinimap(data, myPlayerId);
+  drawMinimap(data, arena, myPlayerId);
 }
 
-export function showMatchHud(room: RoomSummary): void {
-  const title = document.getElementById('match-status-title');
-  if (title) title.textContent = `${room.name} (${room.mode === 'coop' ? 'Co-op' : 'PvP'})`;
-
+export function showMatchHud(_room: RoomSummary): void {
   document.getElementById('match-status-body')?.replaceChildren();
   document.getElementById('match-hud')?.classList.remove('hidden');
+  // Hides the global site frame while in a match — the arena gets its own
+  // matching frame instead (see .match-layout .arena-shell in style.css).
+  document.body.classList.add('match-active');
 
   if (!wired) {
     document.getElementById('leave-match-btn')?.addEventListener('click', () => navigate('/'));
+    document.getElementById('settings-btn')?.addEventListener('click', () => showSettingsModal());
     wired = true;
   }
 }
 
 export function hideMatchHud(): void {
   document.getElementById('match-hud')?.classList.add('hidden');
+  document.body.classList.remove('match-active');
   document.getElementById('match-status-body')?.replaceChildren();
 }

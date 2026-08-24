@@ -17,9 +17,13 @@ export class CoopManager {
     private readonly roomId: string,
     private readonly ai: BotAI,
     private readonly getDifficulty: () => ConcreteDifficulty,
-    private readonly mapName: string,
+    private mapName: string,
     private readonly getDurationSec: () => number,
   ) {}
+
+  setMapName(name: string): void {
+    this.mapName = name;
+  }
 
   startCoopWave(): void {
     const { state } = this;

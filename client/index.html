@@ -1,9 +1,46 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pixel Tanks Battle</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Pixel Tanks Battle — Free Online Multiplayer Tank Game</title>
+  <meta name="description" content="Play Pixel Tanks Battle — a free browser multiplayer tank game. Fight real-time PvP duels or defend your base in co-op waves against bot armies on pixel-art arenas. No download needed.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#323137">
+
+  <link rel="canonical" href="https://pixel-tanks-battle.example.com/">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Pixel Tanks Battle">
+  <meta property="og:title" content="Pixel Tanks Battle — Free Online Multiplayer Tank Game">
+  <meta property="og:description" content="Real-time PvP tank duels and co-op base defense against bot waves on pixel-art arenas. Playable in the browser, no download.">
+  <meta property="og:image" content="/ui/og-banner.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Pixel Tanks Battle — Free Online Multiplayer Tank Game">
+  <meta name="twitter:description" content="Real-time PvP tank duels and co-op base defense against bot waves on pixel-art arenas. Playable in the browser, no download.">
+  <meta name="twitter:image" content="/ui/og-banner.png">
+
+  <!-- Structured data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "VideoGame",
+    "name": "Pixel Tanks Battle",
+    "description": "Free online multiplayer pixel-art tank game: real-time PvP battles and co-op base defense against bot waves, playable in the browser.",
+    "genre": ["Action", "Multiplayer", "Arcade"],
+    "playMode": ["MultiPlayer", "CoOp"],
+    "applicationCategory": "Game",
+    "operatingSystem": "Web",
+    "gamePlatform": "Web Browser"
+  }
+  </script>
+
   <link rel="icon" href="/favicon.ico" type="image/png">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,12 +51,23 @@
 </head>
 
 <body>
+  <div class="site">
   <!-- Прелоадер: пока проверяем сессию, чтобы не мелькала форма входа -->
   <div id="preloader">
     <div class="screen">
-      <div class="field">
+      <div class="field pixel-ui">
         <h1 class="title">TANK BATTLE</h1>
         <p class="tagline preloader-text">Loading&hellip;</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Экран загрузки матча: висит, пока не придут арена и первый снапшот -->
+  <div id="match-loader" class="hidden">
+    <div class="screen">
+      <div class="field pixel-ui">
+        <h1 class="title">TANK BATTLE</h1>
+        <p class="tagline preloader-text">Deploying&hellip;</p>
       </div>
     </div>
   </div>
@@ -27,35 +75,35 @@
   <!-- Экран входа / регистрации -->
   <div id="auth-overlay" class="hidden">
     <div class="screen">
-      <div class="field">
-        <main class="panel">
-          <h1 class="title">TANK BATTLE</h1>
-          <p class="tagline">Pixel War Arena</p>
+      <div class="field pixel-ui">
+        <div class="panel">
+          <span class="deco tl"></span><span class="deco tr"></span>
+          <span class="deco bl"></span><span class="deco br"></span>
 
-          <div class="auth-tabs tabs" role="tablist">
-            <button type="button" class="auth-tab-btn selected" data-tab="login" role="tab" aria-selected="true">Log In</button>
-            <button type="button" class="auth-tab-btn" data-tab="register" role="tab" aria-selected="false">Register</button>
+          <div class="tab"><h1 class="o">TANK BATTLE</h1></div>
+
+          <div class="tabs" role="tablist">
+            <button type="button" class="ftab o auth-tab-btn selected" data-tab="login" role="tab" aria-selected="true">LOG IN</button>
+            <button type="button" class="ftab o auth-tab-btn" data-tab="register" role="tab" aria-selected="false">REGISTER</button>
           </div>
 
-          <form id="auth-form">
-            <div class="input-group">
-              <label for="auth-username">Username:</label>
-              <input type="text" id="auth-username" maxlength="20" placeholder="CALLSIGN" autocomplete="username">
-            </div>
-            <div class="input-group">
-              <label for="auth-password">Password:</label>
-              <input type="password" id="auth-password" placeholder="••••••••" autocomplete="current-password">
-            </div>
-            <div id="auth-error" class="auth-error"></div>
-            <div class="actions">
-              <button type="submit" class="btn-start" id="auth-submit">LOG IN</button>
-              <button type="button" class="btn-guest" id="btn-guest">Play as Guest</button>
-            </div>
-          </form>
-        </main>
+          <div class="well">
+            <form id="auth-form">
+              <label class="lbl o" for="auth-username">Username:</label>
+              <input class="field-input" type="text" id="auth-username" maxlength="12" placeholder="CALLSIGN" autocomplete="username">
 
-        <span class="tank tank--green" aria-hidden="true"></span>
-        <span class="tank tank--brown" aria-hidden="true"></span>
+              <label class="lbl o" for="auth-password">Password:</label>
+              <input class="field-input" type="password" id="auth-password" placeholder="••••••••" autocomplete="current-password">
+
+              <div id="auth-error" class="err o" role="alert"></div>
+
+              <div class="btn-row">
+                <button type="submit" class="btn o" id="auth-submit">LOG IN</button>
+                <button type="button" class="btn o" id="btn-guest">Play as Guest</button>
+              </div>
+            </form>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -63,110 +111,122 @@
   <!-- Лоббі -->
   <div id="lobby-overlay" class="hidden">
     <div class="screen">
-      <div class="field">
-        <h1 class="title">TANK BATTLE</h1>
+      <div class="field pixel-ui">
+        <div class="lobby-shell">
+          <h1 class="sr-only">TANK BATTLE � online multiplayer pixel tank game</h1>
+          <div class="lobby-nav">
+            <button type="button" class="btn o" id="lobby-account-btn">Account</button>
+            <button type="button" class="btn o" id="lobby-logout-btn">Log Out</button>
+          </div>
+          <div id="lobby-account" class="whoami o"></div>
 
-        <div class="lobby-nav">
-          <button type="button" class="btn" id="lobby-editor-btn">Map Editor</button>
-          <button type="button" class="btn" id="lobby-leaderboard-btn">Leaderboard</button>
-        </div>
+          <div class="lobby-columns">
+            <div class="panel">
+              <span class="deco tl"></span><span class="deco tr"></span>
+              <span class="deco bl"></span><span class="deco br"></span>
+              <div class="tab"><h2 class="o">PUBLIC ROOMS</h2></div>
+              <div class="well" id="lobby-room-list"></div>
+            </div>
 
-        <div class="panels">
-          <section class="column">
-            <div class="hat"><span>Public Rooms</span></div>
-            <div class="plate">
-              <div class="lobby-room-header">
-                <span>Room</span>
-                <span>Mode</span>
-                <span>Players</span>
-                <span>Status</span>
-                <span></span>
+            <div class="panel">
+              <span class="deco tl"></span><span class="deco tr"></span>
+              <span class="deco bl"></span><span class="deco br"></span>
+              <div class="tab"><h2 class="o">PLAY</h2></div>
+              <div class="well">
+                <input class="field-input" id="lobby-join-code" type="text" placeholder="CODE"
+                       maxlength="6" autocomplete="off" spellcheck="false" aria-label="Room code">
+                <div class="btn-row">
+                  <button class="btn o" type="button" id="lobby-create-btn">CREATE ROOM</button>
+                  <button class="btn o" type="button" id="lobby-join-btn">JOIN BY CODE</button>
+                </div>
+                <div id="lobby-error" class="err o" role="alert"></div>
               </div>
-              <div id="lobby-room-list" class="lobby-room-list"></div>
             </div>
-          </section>
-
-          <section class="column">
-            <div class="hat"><span>Create Room</span></div>
-            <div class="plate">
-              <form id="lobby-create-form" class="lobby-form">
-                <label>Room Name</label>
-                <input type="text" id="lobby-create-name" maxlength="40" placeholder="Room name" autocomplete="off">
-                <label>Mode</label>
-                <div class="lobby-toggle-group" id="lobby-create-mode">
-                  <button type="button" class="mode-btn selected" data-value="pvp">PvP</button>
-                  <button type="button" class="mode-btn" data-value="coop">Co-op</button>
-                </div>
-                <label>Visibility</label>
-                <div class="lobby-toggle-group" id="lobby-create-visibility">
-                  <button type="button" class="mode-btn selected" data-value="public">Public</button>
-                  <button type="button" class="mode-btn" data-value="private">Private</button>
-                </div>
-                <label>Map</label>
-                <select id="lobby-create-map"></select>
-                <label>Bot Difficulty</label>
-                <div class="lobby-toggle-group" id="lobby-create-difficulty">
-                  <button type="button" class="mode-btn" data-value="easy">Easy</button>
-                  <button type="button" class="mode-btn selected" data-value="normal">Normal</button>
-                  <button type="button" class="mode-btn" data-value="hard">Hard</button>
-                  <button type="button" class="mode-btn" data-value="adaptive">Adaptive</button>
-                </div>
-                <div class="lobby-bot-fill" id="lobby-bot-fill-row">
-                  <label for="lobby-bot-fill">Bot Fill Target (PvP)</label>
-                  <select id="lobby-bot-fill">
-                    <option value="0">0 &mdash; no bots</option>
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                    <option value="3" selected>3</option>
-                    <option value="4">4</option>
-                    <option value="5">5</option>
-                    <option value="6">6</option>
-                    <option value="7">7</option>
-                    <option value="8">8 &mdash; full room</option>
-                  </select>
-                </div>
-                <button type="submit" class="btn-start">CREATE ROOM</button>
-              </form>
-
-              <div class="lobby-divider"><span>or join by code</span></div>
-
-              <form id="lobby-join-form" class="lobby-form lobby-form--inline">
-                <input type="text" id="lobby-join-code" class="lobby-code-input" maxlength="6" placeholder="ABC123" autocomplete="off">
-                <button type="submit" class="btn-start">JOIN</button>
-              </form>
-
-              <div id="lobby-error" class="auth-error"></div>
-            </div>
-          </section>
-
-          <section class="column">
-            <div class="hat"><span>My Maps</span></div>
-            <div class="plate">
-              <div id="lobby-my-maps-list" class="lobby-room-list"></div>
-            </div>
-          </section>
+          </div>
         </div>
+      </div>
+    </div>
+  </div>
 
-        <span class="tank tank--green" aria-hidden="true"></span>
-        <span class="tank tank--brown" aria-hidden="true"></span>
+  <!-- Створення кімнати -->
+  <div id="create-room-overlay" class="hidden">
+    <div class="screen">
+      <div class="field pixel-ui">
+        <div class="panel panel--wide">
+          <span class="deco tl"></span><span class="deco tr"></span>
+          <span class="deco bl"></span><span class="deco br"></span>
+          <div class="tab"><h1 class="o">CREATE ROOM</h1></div>
+
+          <div class="cols">
+            <section class="col col-maps">
+              <div class="maps-toolbar">
+                <h2 class="o">MAP SELECTION</h2>
+                <div class="seg" id="create-room-map-scope" role="group" aria-label="Map scope">
+                  <button class="btn o" type="button" data-value="all" aria-pressed="true">ALL</button>
+                  <button class="btn o" type="button" data-value="mine" aria-pressed="false">MY MAPS</button>
+                </div>
+              </div>
+              <div class="well">
+                <div class="grid" id="create-room-maps" role="group" aria-label="Map selection"></div>
+              </div>
+              <button class="btn o" type="button" id="create-room-new-map-btn">+ New Map</button>
+            </section>
+
+            <section class="col col-cfg">
+              <h2 class="o">ROOM CONFIGURATION</h2>
+              <div class="well" style="border:0">
+                <input class="field-input" id="create-room-name" placeholder="Room name"
+                       maxlength="40" autocomplete="off" spellcheck="false" aria-label="Room name">
+
+                <h3 class="o">MODE</h3>
+                <div class="seg" id="create-room-mode" role="group" aria-label="Mode">
+                  <button class="btn o" type="button" data-value="pvp" aria-pressed="true">PVP</button>
+                  <button class="btn o" type="button" data-value="coop" aria-pressed="false">CO-OP</button>
+                </div>
+
+                <h3 class="o">VISIBILITY</h3>
+                <div class="seg" id="create-room-visibility" role="group" aria-label="Visibility">
+                  <button class="btn o" type="button" data-value="public" aria-pressed="true">PUBLIC</button>
+                  <button class="btn o" type="button" data-value="private" aria-pressed="false">PRIVATE</button>
+                </div>
+
+                <h3 class="o">BOT DIFFICULTY</h3>
+                <div class="seg" id="create-room-difficulty" role="group" aria-label="Bot difficulty">
+                  <button class="btn o" type="button" data-value="easy" aria-pressed="false">EASY</button>
+                  <button class="btn o" type="button" data-value="normal" aria-pressed="true">NORMAL</button>
+                  <button class="btn o" type="button" data-value="hard" aria-pressed="false">HARD</button>
+                  <button class="btn o" type="button" data-value="adaptive" aria-pressed="false">ADAPTIVE</button>
+                </div>
+
+                <h3 class="o" id="create-room-fill-label">BOT FILL TARGET</h3>
+                <div class="stepper" id="create-room-fill-row">
+                  <button class="btn o" type="button" id="create-room-fill-minus" aria-label="Less">&minus;</button>
+                  <input class="count" id="create-room-fill" type="number" min="0" max="8" step="1" value="3" aria-label="Bot fill target">
+                  <button class="btn o" type="button" id="create-room-fill-plus" aria-label="More">+</button>
+                </div>
+
+                <button class="btn create o" type="button" id="create-room-submit">CREATE ROOM</button>
+                <button class="guest o" type="button" id="create-room-back-btn">&larr; Back to Lobby</button>
+                <p class="err o" role="alert" id="create-room-error"></p>
+              </div>
+            </section>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- Редактор мап -->
   <div id="editor-overlay" class="hidden">
+    <h1 class="sr-only">Map Editor</h1>
     <div class="editor-layout">
       <main class="arena-shell">
         <canvas id="editor-canvas"></canvas>
       </main>
 
-      <aside class="side">
-        <section class="hud-panel hud-panel--wood">
-          <h2 class="hud-panel-title">Map Editor</h2>
-          <button type="button" id="editor-back-btn" class="btn-guest">&larr; Back to Lobby</button>
-        </section>
+      <aside class="side pixel-ui">
 
-        <section class="hud-panel hud-panel--steel">
+        <section>
           <div class="editor-field-group">
             <label class="editor-label" for="editor-name">Map Name</label>
             <input type="text" id="editor-name" class="editor-input" maxlength="40" placeholder="Map name" autocomplete="off">
@@ -187,7 +247,7 @@
           </div>
         </section>
 
-        <section class="hud-panel hud-panel--steel">
+        <section>
           <div class="editor-field-group">
             <label class="editor-label">Tool</label>
             <div class="lobby-toggle-group editor-toggle-grid" id="editor-tool">
@@ -197,7 +257,6 @@
               <button type="button" class="mode-btn" data-value="spawn">Enemy Spawn</button>
               <button type="button" class="mode-btn" data-value="erase">Erase</button>
             </div>
-            <span class="editor-info">Drag to paint &middot; right-click to erase</span>
           </div>
           <div class="editor-field-group">
             <label class="editor-label">Zoom</label>
@@ -210,92 +269,20 @@
           </div>
         </section>
 
-        <section class="hud-panel hud-panel--steel">
-          <span id="editor-stats" class="editor-info"></span>
-          <span id="editor-coords" class="editor-info"></span>
+        <section>
+          <div class="editor-stats-row">
+            <span id="editor-stats" class="editor-info"></span>
+            <span id="editor-coords" class="editor-info"></span>
+          </div>
         </section>
 
         <section class="editor-actions">
-          <button type="button" id="editor-clear-btn" class="btn btn--danger">Clear Map</button>
-          <button type="button" id="editor-save-btn" class="btn-start">SAVE MAP</button>
+          <button type="button" id="editor-back-btn" class="btn o">&larr; Back to Lobby</button>
+          <button type="button" id="editor-clear-btn" class="btn o">Clear Map</button>
+          <button type="button" id="editor-save-btn" class="btn o">SAVE MAP</button>
           <div id="editor-error" class="auth-error"></div>
         </section>
       </aside>
-    </div>
-  </div>
-
-  <!-- Лідерборд -->
-  <div id="leaderboard-overlay" class="hidden">
-    <div class="screen">
-      <div class="field">
-        <h1 class="title">TANK BATTLE</h1>
-        <p class="subtitle">Leaderboard</p>
-
-        <div class="panels">
-          <section class="column">
-            <div class="hat"><span>Top Players</span></div>
-            <div class="plate">
-              <div id="leaderboard-list" class="lobby-room-list"></div>
-            </div>
-          </section>
-          <section class="column">
-            <div class="hat"><span>Your Recent Matches</span></div>
-            <div class="plate">
-              <div id="leaderboard-history" class="lobby-room-list"></div>
-            </div>
-          </section>
-        </div>
-
-        <div class="actions">
-          <button type="button" class="btn-start" id="leaderboard-back-btn">Back to Lobby</button>
-        </div>
-
-        <span class="tank tank--green" aria-hidden="true"></span>
-        <span class="tank tank--brown" aria-hidden="true"></span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Приветственное меню -->
-  <div id="menu-overlay" class="hidden">
-    <div class="screen">
-      <div class="field">
-        <main class="panel">
-          <h1 class="title">TANK BATTLE</h1>
-          <p class="tagline">Pixel War Arena</p>
-          <div id="account-status" class="whoami"></div>
-          <div id="room-info" class="room-info"></div>
-
-          <div class="menu-form">
-            <div class="input-group">
-              <label for="player-name">Enter Your Callsign:</label>
-              <input type="text" id="player-name" maxlength="15" placeholder="Warrior" autocomplete="off">
-            </div>
-
-            <div class="color-selection">
-              <label>Choose Your Tank Color:</label>
-              <div class="color-palette">
-                <div class="color-option" data-color="#ffffff" style="background-color: #ffffff;" title="White"></div>
-                <div class="color-option" data-color="#04847c" style="background-color: #04847c;" title="Teal"></div>
-                <div class="color-option" data-color="#c20000" style="background-color: #c20000;" title="Red"></div>
-                <div class="color-option" data-color="#007f9b" style="background-color: #007f9b;" title="Blue"></div>
-                <div class="color-option" data-color="#ab8f00" style="background-color: #ab8f00;" title="Yellow"></div>
-                <div class="color-option" data-color="#006b44" style="background-color: #006b44;" title="Mint"></div>
-                <div class="color-option" data-color="#FF8B94" style="background-color: #FF8B94;" title="Pink"></div>
-                <div class="color-option" data-color="#3100ab" style="background-color: #3100ab;" title="Purple"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="actions">
-            <button class="btn-start" id="btn-start">START BATTLE</button>
-            <button type="button" class="btn-guest" id="menu-back-btn">&larr; Back to Lobby</button>
-          </div>
-        </main>
-
-        <span class="tank tank--green" aria-hidden="true"></span>
-        <span class="tank tank--brown" aria-hidden="true"></span>
-      </div>
     </div>
   </div>
 
@@ -317,23 +304,22 @@
         </div>
       </main>
 
-      <aside id="match-hud" class="side hidden">
+      <aside id="match-hud" class="side hidden pixel-ui">
         <div class="top-actions">
-          <button type="button" class="btn btn--danger" id="leave-match-btn">LEAVE MATCH</button>
+          <button type="button" class="btn o" id="leave-match-btn">LEAVE MATCH</button>
+          <button type="button" class="btn o" id="settings-btn">SETTINGS</button>
         </div>
 
-        <section class="hud-panel hud-panel--wood">
-          <h2 class="hud-panel-title" id="match-status-title">Match Status</h2>
+        <section class="hud-panel hud-panel--wood" id="side-roster-panel">
           <div id="match-status-body"></div>
         </section>
 
-        <section class="hud-panel hud-panel--steel hud-panel--map">
+        <section class="hud-panel hud-panel--steel hud-panel--map" id="side-map-panel">
           <canvas id="minimap-canvas"></canvas>
         </section>
 
         <!-- Чат кімнати (лишається видимим і під час бою) -->
         <section class="hud-panel hud-panel--steel hud-panel--chat hidden" id="chat-panel">
-          <h2 class="hud-panel-title">Chat</h2>
           <div id="chat-log"></div>
           <form id="chat-form">
             <div class="chat-input-row">
@@ -341,15 +327,40 @@
               <button type="button" id="chat-emoji-btn" class="chat-emoji-btn" aria-label="Insert emoji">&#128512;</button>
               <div id="chat-emoji-picker" class="chat-emoji-picker hidden"></div>
             </div>
-            <button type="submit" class="btn-start chat-send-btn">Send</button>
+            <button type="submit" class="btn o chat-send-btn">Send</button>
           </form>
         </section>
       </aside>
     </div>
+
+    <!-- Мобільний док: чат під полем + керування -->
+    <div id="mobile-dock">
+      <section id="chat-dock" class="hidden"></section>
+
+      <div id="mobile-controls">
+        <div class="dpad">
+          <button type="button" class="mc-btn dpad-up" data-move="movePieceTop" aria-label="Up">&#9650;</button>
+          <button type="button" class="mc-btn dpad-left" data-move="movePieceLeft" aria-label="Left">&#9664;</button>
+          <button type="button" class="mc-btn dpad-right" data-move="movePieceRight" aria-label="Right">&#9654;</button>
+          <button type="button" class="mc-btn dpad-down" data-move="movePieceBottom" aria-label="Down">&#9660;</button>
+        </div>
+
+        <div class="mc-right">
+          <div class="mc-toggles">
+            <button type="button" class="btn o" id="mc-map-toggle">MAP</button>
+            <button type="button" class="btn o" id="mc-players-toggle">TEAM</button>
+            <button type="button" class="btn o" id="mc-chat-toggle">CHAT</button>
+            <button type="button" class="btn o" id="mc-settings-toggle">SETUP</button>
+            <button type="button" class="btn o mc-exit" id="mc-exit">EXIT</button>
+          </div>
+          <button type="button" id="mc-fire" aria-label="Fire">FIRE</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Модалка результату бою (перемога / поразка / завершення хвилі) -->
-  <div id="match-modal" class="hidden">
+  <div id="match-modal" class="hidden modal-backdrop">
     <div class="match-modal-box">
       <p class="match-modal-kicker" id="match-modal-kicker"></p>
       <h2 class="match-modal-title" id="match-modal-title"></h2>
@@ -357,6 +368,109 @@
       <button type="button" class="btn-start" id="match-modal-btn">CONTINUE</button>
     </div>
   </div>
+
+  <!-- Сторінка акаунта: позивний + колір танка -->
+  <div id="account-overlay" class="hidden">
+    <div class="screen">
+      <div class="field pixel-ui">
+        <div class="panel">
+          <span class="deco tl"></span><span class="deco tr"></span>
+          <span class="deco bl"></span><span class="deco br"></span>
+          <div class="tab"><h1 class="o">ACCOUNT</h1></div>
+          <div id="account-status" class="whoami o"></div>
+
+          <div class="well">
+            <label class="lbl o" for="account-name">Login:</label>
+            <input class="field-input" id="account-name" maxlength="12" placeholder="Warrior" autocomplete="username">
+            <div class="account-hint o">3&ndash;12 characters, English letters and digits</div>
+
+            <label class="lbl o">Tank Color:</label>
+            <div class="color-palette" id="account-colors">
+              <div class="color-option" data-color="#ffffff" style="background-color: #ffffff;" title="White"></div>
+              <div class="color-option" data-color="#04847c" style="background-color: #04847c;" title="Teal"></div>
+              <div class="color-option" data-color="#c20000" style="background-color: #c20000;" title="Red"></div>
+              <div class="color-option" data-color="#007f9b" style="background-color: #007f9b;" title="Blue"></div>
+              <div class="color-option" data-color="#ab8f00" style="background-color: #ab8f00;" title="Yellow"></div>
+              <!-- <div class="color-option" data-color="#006b44" style="background-color: #006b44;" title="Mint"></div> -->
+              <div class="color-option" data-color="#FF8B94" style="background-color: #FF8B94;" title="Pink"></div>
+              <div class="color-option" data-color="#3100ab" style="background-color: #3100ab;" title="Purple"></div>
+            </div>
+
+            <div id="account-password-fields" class="hidden">
+              <label class="lbl o" for="account-current-password">Current Password:</label>
+              <input class="field-input" type="password" id="account-current-password" autocomplete="current-password">
+
+              <label class="lbl o" for="account-new-password">New Password (leave empty to keep):</label>
+              <input class="field-input" type="password" id="account-new-password" autocomplete="new-password">
+            </div>
+
+            <div id="account-error" class="err o" role="alert"></div>
+
+            <button class="btn o" type="button" id="account-save">SAVE</button>
+            <button class="guest o" type="button" id="account-back-btn">&larr; Back to Lobby</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Мобільні модалки: карта і список гравців -->
+  <div id="map-modal" class="hidden modal-backdrop pixel-ui">
+    <div class="match-modal-box mobile-modal-box">
+      <span class="deco tl"></span><span class="deco tr"></span>
+      <span class="deco bl"></span><span class="deco br"></span>
+      <div class="tab"><h2 class="o">MAP</h2></div>
+      <div id="modal-minimap-host" class="well"></div>
+      <button type="button" class="btn o mobile-modal-close" data-close-modal>CLOSE</button>
+    </div>
+  </div>
+
+  <div id="players-modal" class="hidden modal-backdrop pixel-ui">
+    <div class="match-modal-box mobile-modal-box">
+      <span class="deco tl"></span><span class="deco tr"></span>
+      <span class="deco bl"></span><span class="deco br"></span>
+      <div class="tab"><h2 class="o">PLAYERS</h2></div>
+      <div id="modal-roster-host" class="well"></div>
+      <button type="button" class="btn o mobile-modal-close" data-close-modal>CLOSE</button>
+    </div>
+  </div>
+
+  <!-- Модалка налаштувань кімнати — доступна лише хосту, застосовується з наступним матчем -->
+  <div id="settings-modal" class="hidden modal-backdrop pixel-ui">
+    <div class="match-modal-box settings-modal-box">
+      <span class="deco tl"></span><span class="deco tr"></span>
+      <span class="deco bl"></span><span class="deco br"></span>
+      <div class="tab"><h2 class="o">MATCH SETTINGS</h2></div>
+      <p id="settings-modal-note" class="o settings-note"></p>
+
+      <div class="well pixel-scroll">
+        <h3 class="o">MAP</h3>
+        <div class="grid" id="settings-modal-maps" role="group" aria-label="Map selection"></div>
+
+        <h3 class="o" id="settings-modal-difficulty-label">BOT DIFFICULTY</h3>
+        <div class="seg" id="settings-modal-difficulty" role="group" aria-label="Bot difficulty">
+          <button class="btn o" type="button" data-value="easy" aria-pressed="false">EASY</button>
+          <button class="btn o" type="button" data-value="normal" aria-pressed="true">NORMAL</button>
+          <button class="btn o" type="button" data-value="hard" aria-pressed="false">HARD</button>
+          <button class="btn o" type="button" data-value="adaptive" aria-pressed="false">ADAPTIVE</button>
+        </div>
+
+        <h3 class="o" id="settings-modal-fill-label">BOT FILL TARGET</h3>
+        <div class="stepper" id="settings-modal-fill-row">
+          <button class="btn o" type="button" id="settings-modal-fill-minus" aria-label="Less">&minus;</button>
+          <input class="count" id="settings-modal-fill" type="number" min="0" max="8" step="1" aria-label="Bot fill target">
+          <button class="btn o" type="button" id="settings-modal-fill-plus" aria-label="More">+</button>
+        </div>
+
+        <p id="settings-modal-error" class="err o" role="alert"></p>
+        <button class="btn create o" type="button" id="settings-modal-save">START NEXT MATCH</button>
+        <button class="guest o" type="button" id="settings-modal-close">Close</button>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <div class="site-frame" aria-hidden="true"></div>
 
   <script type="module" src="/src/main.ts"></script>
 </body>

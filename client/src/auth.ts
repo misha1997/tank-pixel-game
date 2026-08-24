@@ -1,4 +1,5 @@
 import type { AuthUser } from '@tank/shared';
+import { sanitizeLogin } from './profile.js';
 
 type AuthTab = 'login' | 'register';
 
@@ -44,7 +45,11 @@ export async function initAuth(onReady: (account: AuthUser | null) => void): Pro
   function setTab(tab: AuthTab): void {
     activeTab = tab;
     errorBox.textContent = '';
-    tabButtons.forEach((btn) => btn.classList.toggle('selected', btn.dataset.tab === tab));
+    tabButtons.forEach((btn) => {
+      const isActive = btn.dataset.tab === tab;
+      btn.classList.toggle('selected', isActive);
+      btn.setAttribute('aria-selected', String(isActive));
+    });
     submitBtn.textContent = tab === 'login' ? 'LOG IN' : 'REGISTER';
     passwordInput.autocomplete = tab === 'login' ? 'current-password' : 'new-password';
   }
@@ -89,4 +94,13 @@ export async function initAuth(onReady: (account: AuthUser | null) => void): Pro
   });
 
   guestBtn.addEventListener('click', () => finish(null));
+
+  usernameInput.addEventListener('input', () => {
+    const sanitized = sanitizeLogin(usernameInput.value);
+    if (sanitized !== usernameInput.value) {
+      const caret = usernameInput.selectionStart;
+      usernameInput.value = sanitized;
+      usernameInput.setSelectionRange(caret === null ? null : Math.min(caret, sanitized.length), caret === null ? null : Math.min(caret, sanitized.length));
+    }
+  });
 }

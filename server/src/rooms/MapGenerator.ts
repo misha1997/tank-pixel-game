@@ -1,6 +1,7 @@
 import { size } from '@tank/shared';
 import type { GameMode, MapCell, MapDefinition } from '@tank/shared';
 import type { MapBounds, RoomState } from './state.js';
+import { rebuildBlockedCellSets } from './state.js';
 
 const DEFAULT_BASE = { x: 48, y: 52 };
 
@@ -52,6 +53,7 @@ export class MapGenerator {
 
     state.walls = definition.walls.map((cell) => ({ x: cell.x, y: cell.y, type: 'wall' as const }));
     state.bricks = definition.bricks.map((cell) => ({ x: cell.x, y: cell.y, type: 'brick' as const, health: 1 }));
+    rebuildBlockedCellSets(state);
 
     if (mode === 'coop') {
       const base = definition.base ?? DEFAULT_BASE;

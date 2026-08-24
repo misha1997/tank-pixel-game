@@ -60,13 +60,47 @@ export interface BaseState {
   health: number;
 }
 
-export interface GameStateSnapshot {
-  playField: number[][];
-  players: Record<string, PlayerState>;
+// Per-player data as streamed in every state snapshot — a trimmed projection
+// of the server's internal PlayerState. Fields the client never reads for
+// rendering or input prediction (bullets, lastShot, health, rating, userId)
+// are deliberately left out of the wire format; they still live on the
+// server-side state object.
+export interface PlayerSnapshot {
+  name: string;
+  color: string;
+  status: boolean;
+  isBot: boolean;
+  isCoopEnemy?: boolean;
+  x: number;
+  y: number;
+  position: TankAnimState;
+  score: number;
+  invulnerableUntil: number;
+  exploding: boolean;
+  explosionEndTime: number;
+  respawnShootingCooldown: number;
+  lives?: number;
+}
+
+// Static match layout: sent once when a socket joins a room and again whenever
+// the host restarts with a new map — never per-tick. Bricks list the cells
+// that are currently alive at send time; subsequent destructions arrive via
+// the existing 'brick destroyed' event, which clients apply to this array.
+export interface ArenaLayout {
   walls: WallState[];
+  bricks: BrickState[];
+}
+
+// Dynamic per-tick state. Tank and bullet visuals are derived from players +
+// bulletCells instead of streaming a full arena matrix: the client stamps each
+// player's 3x3 piece locally (first player in key order owns a contested cell,
+// mirroring the old server-side stamping) and paints bulletCells last so
+// bullets win the cell they occupy — same final pixels as the old playField.
+export interface GameStateSnapshot {
+  players: Record<string, PlayerSnapshot>;
+  bulletCells: MapCell[];
   gameMode: GameMode;
   gameState: MatchState;
-  bricks?: BrickState[];
   base?: BaseState;
   wave?: number;
   enemiesRemaining?: number;
@@ -103,6 +137,9 @@ export interface RoomSummary {
   status: RoomStatus;
   playerCount: number;
   maxPlayers: number;
+  mapId: string;
+  botDifficulty: BotDifficulty;
+  botFillTarget: number;
 }
 
 export interface RoomPlayerInfo {
@@ -124,7 +161,13 @@ export interface JoinRoomPayload {
   code: string;
 }
 
-export type RoomActionResult = { ok: true; room: RoomSummary } | { ok: false; error: string };
+export type RoomActionResult = { ok: true; room: RoomSummary; isHost: boolean } | { ok: false; error: string };
+
+export interface UpdateRoomSettingsPayload {
+  mapId?: string;
+  botDifficulty?: BotDifficulty;
+  botFillTarget?: number;
+}
 
 export interface MapCell {
   x: number;
@@ -150,6 +193,7 @@ export interface MapSummary {
   visibility: RoomVisibility;
   isBuiltin: boolean;
   ownerName: string | null;
+  data: MapDefinition;
 }
 
 export interface MapListResponse {

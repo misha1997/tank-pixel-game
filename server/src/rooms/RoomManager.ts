@@ -37,6 +37,7 @@ export class RoomManager {
         hostSocketId: options.hostSocketId,
         isDefault: options.isDefault ?? false,
         map: resolvedMap.definition,
+        mapId: resolvedMap.id,
         mapName: resolvedMap.name,
         botDifficulty: options.botDifficulty,
         botFillTarget: options.botFillTarget,

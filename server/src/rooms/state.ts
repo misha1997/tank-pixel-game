@@ -1,4 +1,3 @@
-import { size } from '@tank/shared';
 import type {
   BaseState,
   BrickState,
@@ -40,7 +39,6 @@ export interface BotMemory {
 // the process-wide singleton in config/state.js before the multi-room rework.
 export interface RoomState {
   players: Record<string, PlayerState>;
-  playField: number[][];
   bulletIntervals: Record<string, NodeJS.Timeout>;
   botIntervals: Record<string, NodeJS.Timeout>;
   botMemory: Record<string, BotMemory>;
@@ -60,10 +58,15 @@ export interface RoomState {
   bulletPool: BulletState[];
   activeBullets: Map<string, BulletState>;
   bulletIdCounter: number;
-  lastGameUpdate: number;
 
   walls: WallState[];
   enemySpawnPoints: MapCell[];
+
+  // O(1) occupancy mirrors of `walls` and `bricks` (health > 0), keyed by
+  // cellKey(). Rebuilt in rebuildBlockedCellSets whenever a map is applied;
+  // brick entries must be deleted as bricks are destroyed (BulletManager).
+  wallCells: Set<string>;
+  brickCells: Map<string, BrickState>;
 
   // Bounding box of the current map's actual layout (walls/bricks/base/spawn
   // points), padded a few cells. The arena grid (shared `size`) is much
@@ -83,7 +86,6 @@ export interface MapBounds {
 export function createInitialRoomState(mode: GameMode): RoomState {
   return {
     players: {},
-    playField: [],
     bulletIntervals: {},
     botIntervals: {},
     botMemory: {},
@@ -103,16 +105,26 @@ export function createInitialRoomState(mode: GameMode): RoomState {
     bulletPool: [],
     activeBullets: new Map(),
     bulletIdCounter: 0,
-    lastGameUpdate: 0,
 
     walls: [],
     enemySpawnPoints: [],
     mapBounds: null,
+
+    wallCells: new Set(),
+    brickCells: new Map(),
   };
 }
 
-export function resetPlayField(playField: number[][]): void {
-  for (let row = 0; row < size.row; row++) {
-    playField[row] = new Array(size.col).fill(0);
+export function cellKey(x: number, y: number): string {
+  return `${x},${y}`;
+}
+
+export function rebuildBlockedCellSets(state: RoomState): void {
+  state.wallCells.clear();
+  for (const wall of state.walls) state.wallCells.add(cellKey(wall.x, wall.y));
+
+  state.brickCells.clear();
+  for (const brick of state.bricks) {
+    if (brick.health > 0) state.brickCells.set(cellKey(brick.x, brick.y), brick);
   }
 }

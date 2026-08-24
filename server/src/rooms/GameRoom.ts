@@ -1,13 +1,16 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { Server } from 'socket.io';
-import { GAME_UPDATE_INTERVAL, INVULNERABILITY_TIME } from '@tank/shared';
+import { GAME_UPDATE_INTERVAL, INVULNERABILITY_TIME, size } from '@tank/shared';
 import type {
+  ArenaLayout,
   BotDifficulty,
   ChatMessage,
   ClientToServerEvents,
   GameMode,
   GameStateSnapshot,
+  MapCell,
   MapDefinition,
+  PlayerSnapshot,
   RoomPlayerInfo,
   RoomStatus,
   RoomSummary,
@@ -15,7 +18,7 @@ import type {
   ServerToClientEvents,
   TankFacing,
 } from '@tank/shared';
-import { createInitialRoomState, resetPlayField, type RoomState } from './state.js';
+import { createInitialRoomState, type RoomState } from './state.js';
 import { MapGenerator } from './MapGenerator.js';
 import { BulletManager } from './BulletManager.js';
 import { PlayerManager } from './PlayerManager.js';
@@ -24,11 +27,13 @@ import { CoopManager } from './CoopManager.js';
 import { PvpBotManager } from './PvpBotManager.js';
 import { resolveConcreteDifficulty, type ConcreteDifficulty } from './difficulty.js';
 import { settlePvpDeparture } from '../matches/settle.js';
+import { resolveMap } from '../maps/resolve.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
 const MAX_ROOM_PLAYERS = 8;
 const DEFAULT_BOT_FILL_TARGET = 3;
+const VALID_BOT_DIFFICULTIES: readonly BotDifficulty[] = ['easy', 'normal', 'hard', 'adaptive'];
 const CHAT_RATE_LIMIT_MS = 800;
 const CHAT_MAX_LENGTH = 200;
 const CHAT_HISTORY_LIMIT = 50;
@@ -42,6 +47,7 @@ export interface GameRoomOptions {
   hostSocketId: string | null;
   isDefault: boolean;
   map: MapDefinition;
+  mapId: string;
   mapName: string;
   botDifficulty?: BotDifficulty;
   botFillTarget?: number;
@@ -55,9 +61,10 @@ export class GameRoom {
   readonly visibility: RoomVisibility;
   readonly hostSocketId: string | null;
   readonly isDefault: boolean;
-  readonly requestedDifficulty: BotDifficulty;
-  readonly botFillTarget: number;
-  readonly mapName: string;
+  requestedDifficulty: BotDifficulty;
+  botFillTarget: number;
+  mapName: string;
+  currentMapId: string;
 
   readonly state: RoomState;
   readonly map: MapGenerator;
@@ -84,6 +91,7 @@ export class GameRoom {
     this.requestedDifficulty = options.botDifficulty ?? 'normal';
     this.botFillTarget = Math.max(0, Math.min(MAX_ROOM_PLAYERS, options.botFillTarget ?? DEFAULT_BOT_FILL_TARGET));
     this.mapName = options.mapName;
+    this.currentMapId = options.mapId;
 
     this.state = createInitialRoomState(this.mode);
     this.map = new MapGenerator(this.state);
@@ -103,7 +111,6 @@ export class GameRoom {
     );
     this.pvpBots = new PvpBotManager(this.state, this.bullets, this.players, this.ai);
 
-    resetPlayField(this.state.playField);
     this.map.applyMap(options.map, this.mode);
 
     this.tickInterval = setInterval(() => this.tick(), GAME_UPDATE_INTERVAL);
@@ -233,6 +240,92 @@ export class GameRoom {
     }
   }
 
+  // Host-triggered rematch: tears down the current round (bots, bullets,
+  // board) and starts a fresh one with new map/bot settings. Human players
+  // stay connected and simply respawn — see client/src/settingsModal.ts.
+  async reconfigure(
+    requesterSocketId: string,
+    settings: { mapId?: string; botDifficulty?: BotDifficulty; botFillTarget?: number },
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    if (!this.hostSocketId || requesterSocketId !== this.hostSocketId) {
+      return { ok: false, error: 'Only the host can change room settings.' };
+    }
+
+    // Validate before touching any state — an unknown difficulty would make
+    // getDifficultyProfile() return undefined and throw inside bot spawning,
+    // wedging PvP rooms half-reconfigured or looping in coop wave spawns.
+    if (
+      settings.botDifficulty !== undefined &&
+      !VALID_BOT_DIFFICULTIES.includes(settings.botDifficulty)
+    ) {
+      return { ok: false, error: 'Invalid bot difficulty.' };
+    }
+
+    const resolved = await resolveMap(this.mode, settings.mapId ?? this.currentMapId);
+    const { state } = this;
+
+    for (const [socketId, player] of Object.entries(state.players)) {
+      if (!player.isBot) continue;
+      if (player.bullets) {
+        for (const bulletId in player.bullets) this.bullets.returnBulletToPool(bulletId);
+      }
+      if (state.botIntervals[socketId]) {
+        clearInterval(state.botIntervals[socketId]);
+        delete state.botIntervals[socketId];
+      }
+      delete state.players[socketId];
+      delete state.botMemory[socketId];
+    }
+    state.coopBotCount = 0;
+    if (state.waveSpawnInterval) {
+      clearInterval(state.waveSpawnInterval);
+      state.waveSpawnInterval = null;
+    }
+
+    this.map.applyMap(resolved.definition, this.mode);
+
+    this.mapName = resolved.name;
+    this.currentMapId = resolved.id;
+    if (settings.botDifficulty) this.requestedDifficulty = settings.botDifficulty;
+    if (typeof settings.botFillTarget === 'number') {
+      this.botFillTarget = Math.max(0, Math.min(MAX_ROOM_PLAYERS, settings.botFillTarget));
+    }
+
+    // Symmetry with the bot teardown above: drop human players' in-flight
+    // bullets so respawns start from a clean field.
+    for (const player of Object.values(state.players)) {
+      for (const bulletId in player.bullets ?? {}) {
+        this.bullets.returnBulletToPool(bulletId);
+      }
+    }
+
+    for (const socketId of Object.keys(state.players)) {
+      this.players.restartPlayer(socketId);
+    }
+
+    this.matchStartedAt = Date.now();
+    this.coop.setMapName(this.mapName);
+
+    if (this.status === 'playing') {
+      if (this.mode === 'coop') {
+        this.coop.startCoopWave();
+      } else {
+        this.maintainBotFill();
+      }
+    } else {
+      // Host reconfigured before spawning themselves: formally start the
+      // match so bots/enemies don't run inside a zero-player waiting room.
+      this.startMatch();
+    }
+
+    // New map layout — everyone (players and spectators) needs the fresh
+    // static arena.
+    this.broadcastArena();
+
+    this.broadcastSystemMessage('Host started a new match with updated settings.');
+    return { ok: true };
+  }
+
   kick(requestingSocketId: string, targetSocketId: string): boolean {
     if (!this.hostSocketId || requestingSocketId !== this.hostSocketId) return false;
     const target = this.state.players[targetSocketId];
@@ -262,6 +355,26 @@ export class GameRoom {
     return this.matchStartedAt ? Math.round((Date.now() - this.matchStartedAt) / 1000) : 0;
   }
 
+  // Static match layout for the wire: walls never change mid-match, and the
+  // brick list is "alive as of right now" — later destructions stream via the
+  // 'brick destroyed' event, which clients apply to their copy of this array.
+  getArenaLayout(): ArenaLayout {
+    const { state } = this;
+    return {
+      walls: state.walls.map((wall) => ({ x: wall.x, y: wall.y, type: 'wall' as const })),
+      bricks:
+        state.gameMode === 'coop'
+          ? state.bricks
+              .filter((brick) => brick.health > 0)
+              .map((brick) => ({ x: brick.x, y: brick.y, type: 'brick' as const, health: brick.health }))
+          : [],
+    };
+  }
+
+  broadcastArena(): void {
+    this.io.to(this.id).emit('arena', this.getArenaLayout());
+  }
+
   playerCount(): number {
     return Object.keys(this.state.players).length;
   }
@@ -284,6 +397,9 @@ export class GameRoom {
       status: this.status,
       playerCount: this.humanPlayerCount(),
       maxPlayers: MAX_ROOM_PLAYERS,
+      mapId: this.currentMapId,
+      botDifficulty: this.requestedDifficulty,
+      botFillTarget: this.botFillTarget,
     };
   }
 
@@ -331,43 +447,21 @@ export class GameRoom {
 
   private tick(): void {
     const { state } = this;
-    const now = Date.now();
-
-    if (now - state.lastGameUpdate < GAME_UPDATE_INTERVAL) {
-      return;
-    }
-    state.lastGameUpdate = now;
 
     if (this.playerCount() === 0) return;
 
-    resetPlayField(state.playField);
-
-    // Two passes, not one: bullets must always win the cell they're on. In a
-    // single combined pass, a player processed later in this same loop could
-    // re-stamp their tank body over a bullet another player already fired
-    // into that cell this tick, briefly hiding/recoloring the bullet.
+    // Bullet cells are collected BEFORE checkBulletCollisions() so a snapshot
+    // still shows bullets that annihilate each other this tick — the old
+    // playField matrix had the same one-tick visibility, and the death
+    // animation depends on it.
+    const bulletCells: MapCell[] = [];
     for (const playerId in state.players) {
       const player = state.players[playerId];
-      if (player && player.status) {
-        this.players.applyPlayerToField(player);
-      }
-    }
-
-    for (const playerId in state.players) {
-      const player = state.players[playerId];
-      if (player && player.bullets) {
-        for (const bulletId in player.bullets) {
-          const bullet = player.bullets[bulletId];
-          if (
-            bullet && bullet.x >= 0 && bullet.x < state.playField[0]?.length &&
-            bullet.y >= 0 && bullet.y < state.playField.length
-          ) {
-            // 2, not 1 — keeps bullets distinguishable from tank-body cells
-            // on the client (view.ts), which otherwise colors any filled
-            // cell by whichever player's 3x3 box it falls inside, painting
-            // a bullet the target's color the moment it enters their tile.
-            state.playField[bullet.y][bullet.x] = 2;
-          }
+      if (!player?.bullets) continue;
+      for (const bulletId in player.bullets) {
+        const bullet = player.bullets[bulletId];
+        if (bullet && bullet.x >= 0 && bullet.x < size.col && bullet.y >= 0 && bullet.y < size.row) {
+          bulletCells.push({ x: bullet.x, y: bullet.y });
         }
       }
     }
@@ -376,16 +470,36 @@ export class GameRoom {
       this.bullets.checkBulletCollisions();
     }
 
+    const players: Record<string, PlayerSnapshot> = {};
+    for (const playerId in state.players) {
+      const player = state.players[playerId];
+      if (!player) continue;
+      players[playerId] = {
+        name: player.name,
+        color: player.color,
+        status: player.status,
+        isBot: player.isBot,
+        isCoopEnemy: player.isCoopEnemy,
+        x: player.x,
+        y: player.y,
+        position: player.position,
+        score: player.score,
+        invulnerableUntil: player.invulnerableUntil,
+        exploding: player.exploding,
+        explosionEndTime: player.explosionEndTime,
+        respawnShootingCooldown: player.respawnShootingCooldown,
+        lives: player.lives,
+      };
+    }
+
     const snapshot: GameStateSnapshot = {
-      playField: state.playField,
-      players: state.players,
-      walls: state.walls,
+      players,
+      bulletCells,
       gameMode: state.gameMode,
       gameState: state.gameState,
     };
 
     if (state.gameMode === 'coop') {
-      snapshot.bricks = state.bricks;
       snapshot.base = state.base;
       snapshot.wave = state.coopWave;
       snapshot.enemiesRemaining = state.enemiesToSpawn;

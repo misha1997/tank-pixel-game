@@ -33,6 +33,7 @@ mapsRouter.get('/', async (req, res) => {
     visibility: 'public',
     isBuiltin: true,
     ownerName: null,
+    data: m.definition,
   }));
 
   const publicMaps = await prisma.map.findMany({
@@ -49,13 +50,21 @@ mapsRouter.get('/', async (req, res) => {
       })
     : [];
 
-  const toSummary = (m: { id: string; name: string; mode: string; visibility: string; owner?: { username: string } }): MapSummary => ({
+  const toSummary = (m: {
+    id: string;
+    name: string;
+    mode: string;
+    visibility: string;
+    data: unknown;
+    owner?: { username: string };
+  }): MapSummary => ({
     id: m.id,
     name: m.name,
     mode: m.mode as GameMode,
     visibility: m.visibility as 'public' | 'private',
     isBuiltin: false,
     ownerName: m.owner?.username ?? null,
+    data: m.data as MapDefinition,
   });
 
   const response: MapListResponse = {
@@ -103,6 +112,7 @@ mapsRouter.post('/', async (req, res) => {
     visibility: map.visibility as 'public' | 'private',
     isBuiltin: false,
     ownerName: null,
+    data: map.data as unknown as MapDefinition,
   };
   res.status(201).json(summary);
 });

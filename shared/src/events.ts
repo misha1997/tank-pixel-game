@@ -1,4 +1,5 @@
 import type {
+  ArenaLayout,
   ChatMessage,
   CreateRoomPayload,
   GameMode,
@@ -8,6 +9,7 @@ import type {
   RoomActionResult,
   RoomPlayerInfo,
   RoomSummary,
+  UpdateRoomSettingsPayload,
 } from './types.js';
 
 export interface ClientToServerEvents {
@@ -25,6 +27,7 @@ export interface ClientToServerEvents {
   'lobby:join': (data: JoinRoomPayload, ack: (result: RoomActionResult) => void) => void;
   'room:kick': (data: { roomId: string; targetSocketId: string }) => void;
   'room:leave': () => void;
+  'room:updateSettings': (data: UpdateRoomSettingsPayload, ack: (result: RoomActionResult) => void) => void;
 
   'chat:send': (text: string) => void;
 }
@@ -32,6 +35,7 @@ export interface ClientToServerEvents {
 export interface ServerToClientEvents {
   'player id': (id: string) => void;
   'game mode': (data: { mode: GameMode; wave: number }) => void;
+  arena: (layout: ArenaLayout) => void;
   state: (data: GameStateSnapshot) => void;
   'user dead': (id: string) => void;
   'user dead sound': () => void;
@@ -45,6 +49,7 @@ export interface ServerToClientEvents {
   'lobby:rooms': (rooms: RoomSummary[]) => void;
   'room:players': (players: RoomPlayerInfo[]) => void;
   'room:kicked': () => void;
+  'room:restarted': (room: RoomSummary) => void;
 
   'chat:message': (message: ChatMessage) => void;
   'chat:history': (messages: ChatMessage[]) => void;

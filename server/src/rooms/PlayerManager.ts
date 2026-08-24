@@ -213,23 +213,4 @@ export class PlayerManager {
       player.score = 0;
     }
   }
-
-  applyPlayerToField(player: PlayerState): void {
-    const { state } = this;
-    const piece = positionPiece[player.position];
-    if (!piece) return;
-
-    for (let y = 0; y < 3; y++) {
-      for (let x = 0; x < 3; x++) {
-        if (piece[y][x] === 1 && player.status) {
-          const posX = player.x + x;
-          const posY = player.y + y;
-
-          if (posX >= 0 && posX < size.col && posY >= 0 && posY < size.row) {
-            state.playField[posY][posX] = 1;
-          }
-        }
-      }
-    }
-  }
 }

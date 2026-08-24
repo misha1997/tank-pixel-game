@@ -90,7 +90,7 @@ io.on('connection', (socket) => {
       botDifficulty,
       botFillTarget,
     });
-    ack({ ok: true, room: room.toSummary() });
+    ack({ ok: true, room: room.toSummary(), isHost: true });
   });
 
   socket.on('lobby:join', ({ code }, ack) => {
@@ -99,7 +99,23 @@ io.on('connection', (socket) => {
       ack({ ok: false, error: 'No room found with that code.' });
       return;
     }
-    ack({ ok: true, room: room.toSummary() });
+
+    // Joining a new room must drop any previous membership first — otherwise
+    // hopping rooms leaves the socket receiving state snapshots from both.
+    leaveCurrentRoom(socket.id);
+
+    // Joining puts this socket in the room's broadcast group right away, so
+    // the client can render/spectate the live match and see chat while the
+    // identity modal (name/color) is still up — becoming an actual player
+    // only happens on 'new player'.
+    socket.leave(LOBBY_WATCHERS_ROOM);
+    socketRooms.set(socket.id, room);
+    socket.join(room.id);
+    socket.emit('game mode', { mode: room.mode, wave: room.state.coopWave });
+    socket.emit('arena', room.getArenaLayout());
+    socket.emit('chat:history', room.getChatHistory());
+
+    ack({ ok: true, room: room.toSummary(), isHost: room.hostSocketId === socket.id });
   });
 
   socket.on('room:kick', ({ roomId, targetSocketId }) => {
@@ -125,6 +141,7 @@ io.on('connection', (socket) => {
 
     socket.emit('player id', socket.id);
     socket.emit('game mode', { mode: room.mode, wave: room.state.coopWave });
+    socket.emit('arena', room.getArenaLayout());
     socket.emit('chat:history', room.getChatHistory());
 
     roomManager.broadcastRoster(room);
@@ -137,6 +154,10 @@ io.on('connection', (socket) => {
     socketRooms.get(socket.id)?.sendChat(socket.id, text);
   });
 
+  // Legacy naming from the original prototype: facing names are inverted
+  // relative to travel direction — position 'left' means the tank looks
+  // RIGHT (see the bulletDirections note in @tank/shared). dx/dy below are
+  // true travel deltas.
   socket.on('movePieceRight', () => socketRooms.get(socket.id)?.move(socket.id, 1, 0, 'left'));
   socket.on('movePieceLeft', () => socketRooms.get(socket.id)?.move(socket.id, -1, 0, 'right'));
   socket.on('movePieceTop', () => socketRooms.get(socket.id)?.move(socket.id, 0, -1, 'top'));
@@ -152,6 +173,24 @@ io.on('connection', (socket) => {
 
   socket.on('room:leave', () => {
     leaveCurrentRoom(socket.id);
+  });
+
+  socket.on('room:updateSettings', async (data, ack) => {
+    const room = socketRooms.get(socket.id);
+    if (!room) {
+      ack({ ok: false, error: 'You are not in a room.' });
+      return;
+    }
+
+    const result = await room.reconfigure(socket.id, data);
+    if (!result.ok) {
+      ack(result);
+      return;
+    }
+
+    io.to(room.id).emit('room:restarted', room.toSummary());
+    roomManager.broadcastLobby();
+    ack({ ok: true, room: room.toSummary(), isHost: true });
   });
 
   socket.on('disconnect', () => {

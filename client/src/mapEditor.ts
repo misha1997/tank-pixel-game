@@ -322,9 +322,13 @@ export function showMapEditor(): void {
   resetState();
   applyZoom(document.getElementById('editor-canvas') as HTMLCanvasElement);
   document.getElementById('editor-overlay')?.classList.remove('hidden');
+  // Hides the global site frame while editing — the canvas gets its own
+  // matching frame instead (see .editor-layout .arena-shell in style.css).
+  document.body.classList.add('editor-active');
   render();
 }
 
 export function hideMapEditor(): void {
   document.getElementById('editor-overlay')?.classList.add('hidden');
+  document.body.classList.remove('editor-active');
 }

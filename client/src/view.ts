@@ -1,5 +1,5 @@
-import { size } from '@tank/shared';
-import type { BaseState, BrickState, GameStateSnapshot, PlayerState, WallState } from '@tank/shared';
+import { positionPiece, size } from '@tank/shared';
+import type { ArenaLayout, BaseState, BrickState, GameStateSnapshot, PlayerState, WallState } from '@tank/shared';
 
 // Pixel size pinned to the original prototype (D:\ProjectNode\tank-pixel-game,
 // static/view.js) — a fixed 22px cell, not scaled to fit the container. The
@@ -114,7 +114,7 @@ export default class View {
     ctx.fillRect(xPos + this.innerCellOffset, yPos + this.innerCellOffset, this.innerCellSize, this.innerCellSize);
   }
 
-  render(data: GameStateSnapshot, myPlayerId: string | null): void {
+  render(data: GameStateSnapshot, arena: ArenaLayout | null, myPlayerId: string | null): void {
     const mapWidth = size.col * this.cellSize;
     const mapHeight = size.row * this.cellSize;
 
@@ -141,17 +141,17 @@ export default class View {
 
     this.context.drawImage(this.backgroundCanvas, 0, 0);
 
-    this.renderWalls(data.walls);
+    this.renderWalls(arena?.walls);
 
-    if (data.bricks) {
-      this.renderBricks(data.bricks);
+    if (arena?.bricks) {
+      this.renderBricks(arena.bricks);
     }
 
     if (data.base) {
       this.renderBase(data.base);
     }
 
-    this.renderPlayField(data.playField, data.players);
+    this.renderTanksAndBullets(data.players, data.bulletCells);
 
     this.context.restore();
   }
@@ -226,40 +226,67 @@ export default class View {
     this.context.fillText('E', baseX + this.cellSize / 2, baseY + this.cellSize * 2);
   }
 
-  private renderPlayField(playField: number[][], players: Record<string, PlayerState>): void {
+  // Client-side equivalent of the old server-stamped playField matrix:
+  // each live player's 3x3 piece is stamped locally, then bullet cells paint
+  // over everything, so bullets win the cell they occupy.
+  //
+  // Color ownership deliberately mirrors the previous renderer, quirks
+  // included: a stamped cell takes the color/invulnerability flicker of the
+  // FIRST player (in key order) whose whole 3x3 box covers the cell — which
+  // during invulnerable pass-through overlaps may not be the player whose
+  // piece actually filled it.
+  private renderTanksAndBullets(
+    players: GameStateSnapshot['players'],
+    bulletCells: GameStateSnapshot['bulletCells'],
+  ): void {
     const now = Date.now();
+    const stampedCells = new Set<number>();
 
-    for (let y = 0; y < playField.length; y++) {
-      for (let x = 0; x < playField[y].length; x++) {
-        const cell = playField[y][x];
-        if (cell === 2) {
-          // Bullet cell — always plain black, never looked up against a
-          // player's zone (see the GameRoom.ts comment on why bullets are
-          // stamped as 2, not 1).
-          this.renderFilledCell(x, y, false, now, null);
-          continue;
-        }
-        if (cell === 1) {
-          let isInvulnerable = false;
-          let playerColor: string | null = null;
+    for (const playerId in players) {
+      const player = players[playerId];
+      if (!player || !player.status) continue;
 
-          for (const playerId in players) {
-            const player = players[playerId];
-            if (player && player.status) {
-              if (x >= player.x && x < player.x + 3 && y >= player.y && y < player.y + 3) {
-                playerColor = player.color;
+      const piece = positionPiece[player.position];
+      if (!piece) continue;
 
-                if (player.invulnerableUntil && now < player.invulnerableUntil) {
-                  isInvulnerable = true;
-                }
-                break;
-              }
-            }
-          }
+      for (let y = 0; y < 3; y++) {
+        for (let x = 0; x < 3; x++) {
+          if (piece[y][x] !== 1) continue;
 
-          this.renderFilledCell(x, y, isInvulnerable, now, playerColor);
+          const cellX = player.x + x;
+          const cellY = player.y + y;
+          if (cellX < 0 || cellX >= size.col || cellY < 0 || cellY >= size.row) continue;
+
+          stampedCells.add(cellY * size.col + cellX);
         }
       }
+    }
+
+    for (const key of stampedCells) {
+      const x = key % size.col;
+      const y = (key - x) / size.col;
+
+      let isInvulnerable = false;
+      let playerColor: string | null = null;
+      for (const playerId in players) {
+        const player = players[playerId];
+        if (player && player.status) {
+          if (x >= player.x && x < player.x + 3 && y >= player.y && y < player.y + 3) {
+            playerColor = player.color;
+
+            if (player.invulnerableUntil && now < player.invulnerableUntil) {
+              isInvulnerable = true;
+            }
+            break;
+          }
+        }
+      }
+
+      this.renderFilledCell(x, y, isInvulnerable, now, playerColor);
+    }
+
+    for (const cell of bulletCells) {
+      this.renderFilledCell(cell.x, cell.y, false, now, null);
     }
   }
 

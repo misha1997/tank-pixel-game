@@ -2,6 +2,7 @@ import type { Server } from 'socket.io';
 import { BULLET_POOL_SIZE, BULLET_SPEED, bulletDirections, positionPiece, size } from '@tank/shared';
 import type { BulletState, ClientToServerEvents, ServerToClientEvents, TankFacing } from '@tank/shared';
 import type { RoomState } from './state.js';
+import { cellKey } from './state.js';
 import type { PlayerManager } from './PlayerManager.js';
 import type { CoopManager } from './CoopManager.js';
 
@@ -87,10 +88,8 @@ export class BulletManager {
       return;
     }
 
-    for (const wall of state.walls) {
-      if (wall.x === bulletX && wall.y === bulletY) {
-        return;
-      }
+    if (state.wallCells.has(cellKey(bulletX, bulletY))) {
+      return;
     }
 
     const bullet = this.getBulletFromPool();
@@ -118,12 +117,10 @@ export class BulletManager {
       const nextX = bullet.x + bullet.dx;
       const nextY = bullet.y + bullet.dy;
 
-      for (const wall of state.walls) {
-        if (wall.x === nextX && wall.y === nextY) {
-          this.returnBulletToPool(bulletId);
-          delete player.bullets[bulletId];
-          return;
-        }
+      if (state.wallCells.has(cellKey(nextX, nextY))) {
+        this.returnBulletToPool(bulletId);
+        delete player.bullets[bulletId];
+        return;
       }
 
       bullet.x = nextX;
@@ -145,21 +142,19 @@ export class BulletManager {
       return true;
     }
 
-    for (const wall of state.walls) {
-      if (wall.x === bullet.x && wall.y === bullet.y) {
-        return true;
-      }
+    if (state.wallCells.has(cellKey(bullet.x, bullet.y))) {
+      return true;
     }
 
     if (state.gameMode === 'coop') {
-      for (const brick of state.bricks) {
-        if (brick.x === bullet.x && brick.y === bullet.y && brick.health > 0) {
-          brick.health--;
-          if (brick.health <= 0) {
-            this.io.to(this.roomId).emit('brick destroyed', { x: brick.x, y: brick.y });
-          }
-          return true;
+      const brick = state.brickCells.get(cellKey(bullet.x, bullet.y));
+      if (brick) {
+        brick.health--;
+        if (brick.health <= 0) {
+          state.brickCells.delete(cellKey(brick.x, brick.y));
+          this.io.to(this.roomId).emit('brick destroyed', { x: brick.x, y: brick.y });
         }
+        return true;
       }
 
       if (
@@ -251,18 +246,12 @@ export class BulletManager {
             return true;
           }
 
-          for (const wall of state.walls) {
-            if (wall.x === checkX && wall.y === checkY) {
-              return true;
-            }
+          if (state.wallCells.has(cellKey(checkX, checkY))) {
+            return true;
           }
 
-          if (state.gameMode === 'coop') {
-            for (const brick of state.bricks) {
-              if (brick.x === checkX && brick.y === checkY && brick.health > 0) {
-                return true;
-              }
-            }
+          if (state.gameMode === 'coop' && state.brickCells.has(cellKey(checkX, checkY))) {
+            return true;
           }
         }
       }

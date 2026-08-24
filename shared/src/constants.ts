@@ -1,13 +1,12 @@
 import type { TankAnimState } from './types.js';
 
-export const BULLET_SPEED = 100;
+export const BULLET_SPEED = 60;
 export const BOT_UPDATE_INTERVAL = 400;
 export const GAME_UPDATE_INTERVAL = 100;
 export const BULLET_COOLDOWN = 200;
 export const BOT_SHOOT_DISTANCE = 15;
 export const INVULNERABILITY_TIME = 2000;
 
-export const MAX_PLAYERS = 20;
 export const COLLISION_CHECK_DISTANCE = 5;
 export const BULLET_POOL_SIZE = 100;
 
@@ -41,10 +40,10 @@ export interface BulletDirectionConfig {
 // position 'right' = tank looks LEFT (gun on left), shoots left
 //
 // offsetX/offsetY must land one cell *outside* the 3x3 positionPiece body
-// in the direction of travel — not on one of the piece's own filled cells.
-// A bullet spawned on top of the tank's own muzzle cell gets stamped into
-// playField as a bullet (2) that tick, painting over that cell instead of
-// the tank's color for a frame (see GameRoom.ts's playField comment).
+// in the direction of travel — not on one of the tank's own filled cells.
+// A bullet spawned on top of the tank's own muzzle cell would be streamed
+// as a bullet cell that tick, painting over the tank's color for a frame
+// (bullet cells always win; see GameStateSnapshot in shared/src/types.ts).
 export const bulletDirections: Record<'top' | 'bottom' | 'left' | 'right', BulletDirectionConfig> = {
   top: { dir: 'up', dx: 0, dy: -1, offsetX: 1, offsetY: -1 },
   bottom: { dir: 'down', dx: 0, dy: 1, offsetX: 1, offsetY: 3 },
