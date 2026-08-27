@@ -406,7 +406,19 @@
 }
 
 /* -------------------------------------------------- color picker spacing */
-.pixel-ui .color-palette { margin: calc(var(--s) * 3) 0 calc(var(--s) * 5); }
+.pixel-ui .color-palette {
+  margin: calc(var(--s) * 3) 0 calc(var(--s) * 5);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(var(--s) * 5);
+}
+.pixel-ui .color-option {
+  width: calc(var(--s) * 29);
+  height: calc(var(--s) * 29);
+  border-width: calc(var(--s) * 3);
+}
+.pixel-ui .color-option.selected::after { font-size: calc(var(--s) * 13); }
 
 /* ---------------------------------------------------------- modal bits */
 .pixel-ui .whoami { font-size: calc(var(--s) * 12.5); text-align: center; color: var(--muted); margin-top: calc(var(--s) * 4); }
@@ -428,7 +440,7 @@
   position: relative;
   width: min(calc(var(--s) * 300), 92vw);
   text-align: left;
-  padding: calc(var(--s) * 12) 0 0;
+  padding: calc(var(--s) * 17) 0 0;
   border: calc(var(--s) * 8) solid transparent;
   border-image: var(--spr-panel) 8 fill stretch;
   background: none;
@@ -440,7 +452,7 @@
   position: relative;
   width: min(94vw, 420px);
   text-align: left;
-  padding: calc(var(--s) * 12) 0 0;
+  padding: calc(var(--s) * 17) 0 0;
   border: calc(var(--s) * 8) solid transparent;
   border-image: var(--spr-panel) 8 fill stretch;
   background: none;
