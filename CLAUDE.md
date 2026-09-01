@@ -31,8 +31,10 @@ npm run dev
 npm run build
 npm start          # node server/dist/index.js, serves client/dist as static files
 
-# Local Postgres for Prisma (server/prisma/schema.prisma)
-docker compose up -d
+# Local MySQL for Prisma (server/prisma/schema.prisma) — no Docker;
+# install MySQL 8+ yourself and create the `tank` database/user (see README).
+# `docker compose up -d` builds/runs the whole stack in containers instead,
+# as a fallback deployment option (root Dockerfile + docker-compose.yml).
 cd server && npx prisma migrate dev
 ```
 

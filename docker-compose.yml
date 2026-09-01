@@ -1,15 +1,39 @@
+# Fallback deployment: the whole game (MySQL + built server/client) in
+# Docker. The default workflow is docker-less — a local MySQL install plus
+# `npm run dev` / `npm start` (see README) — use this only when you want
+# everything containerized instead.
 services:
-  postgres:
-    image: postgres:16-alpine
+  mysql:
+    image: mysql:8.4
     restart: unless-stopped
     environment:
-      POSTGRES_USER: tank
-      POSTGRES_PASSWORD: tank
-      POSTGRES_DB: tank
+      MYSQL_DATABASE: tank
+      MYSQL_USER: tank
+      MYSQL_PASSWORD: tank
+      MYSQL_ROOT_PASSWORD: tank
     ports:
-      - '5432:5432'
+      - '3306:3306'
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'tank', '-ptank']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      PORT: 5000
+      NODE_ENV: production
+      DATABASE_URL: mysql://tank:tank@mysql:3306/tank
+      SESSION_SECRET: change-me-to-a-long-random-string
+    ports:
+      - '5000:5000'
 
 volumes:
-  postgres-data:
+  mysql-data:
