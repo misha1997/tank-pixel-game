@@ -1,7 +1,9 @@
 import type { AuthUser } from '@tank/shared';
-import { logout } from './auth.js';
-import { navigate } from './router.js';
-import { loadProfile, saveProfile, sanitizeLogin, DEFAULT_TANK_COLOR } from './profile.js';
+import { logout } from '../auth/auth.js';
+import { navigate } from '../../core/router.js';
+import { mountPartial } from '../../core/page.js';
+import { loadProfile, saveProfile, sanitizeLogin, DEFAULT_TANK_COLOR } from '../../core/profile.js';
+import html from './accountPage.html?raw';
 
 let wired = false;
 let currentAccount: AuthUser | null = null;
@@ -28,7 +30,9 @@ function renderStatus(): void {
 
   statusEl.replaceChildren();
   if (currentAccount) {
-    statusEl.append(`Logged in as ${currentAccount.username} (Rating: ${currentAccount.rating}) — `);
+    statusEl.append(
+      `Logged in as ${currentAccount.username} (Rating: ${currentAccount.rating}) — `,
+    );
     const logoutLink = document.createElement('a');
     logoutLink.textContent = 'Log out';
     logoutLink.addEventListener('click', () => {
@@ -127,7 +131,9 @@ function wireOnce(): void {
       return;
     }
 
-    const currentPasswordInput = document.getElementById('account-current-password') as HTMLInputElement;
+    const currentPasswordInput = document.getElementById(
+      'account-current-password',
+    ) as HTMLInputElement;
     const newPasswordInput = document.getElementById('account-new-password') as HTMLInputElement;
     const currentPassword = currentPasswordInput.value;
     const newPassword = newPasswordInput.value;
@@ -160,7 +166,10 @@ function wireOnce(): void {
         if (!ok) return; // error box already populated
       }
 
-      saveProfile({ name: currentAccount ? currentAccount.username : name, color: selectedColor() });
+      saveProfile({
+        name: currentAccount ? currentAccount.username : name,
+        color: selectedColor(),
+      });
       markSaved();
     } finally {
       saveBtn.disabled = false;
@@ -173,7 +182,10 @@ function wireOnce(): void {
     if (sanitized !== nameInput.value) {
       const caret = nameInput.selectionStart;
       nameInput.value = sanitized;
-      nameInput.setSelectionRange(caret === null ? null : Math.min(caret, sanitized.length), caret === null ? null : Math.min(caret, sanitized.length));
+      nameInput.setSelectionRange(
+        caret === null ? null : Math.min(caret, sanitized.length),
+        caret === null ? null : Math.min(caret, sanitized.length),
+      );
     }
   });
   nameInput.addEventListener('keypress', (e) => {
@@ -187,6 +199,7 @@ export function showAccountPage(account: AuthUser | null): void {
   currentAccount = account;
 
   if (!wired) {
+    mountPartial(html);
     wireOnce();
     wired = true;
   }

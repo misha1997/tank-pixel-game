@@ -79,6 +79,7 @@ npm install
 
 cp server/.env.example server/.env   # then set a real SESSION_SECRET
 cd server && npx prisma migrate dev && cd ..
+npm run db:seed   # loads the built-in maps into the database
 
 npm run dev
 ```
@@ -91,6 +92,7 @@ the backend on port 5000. Open it in a few browser windows or tabs to try multip
 ```bash
 npm run build              # builds shared, server, client
 npm run db:migrate:deploy  # applies pending Prisma migrations
+npm run db:seed            # loads/updates the built-in maps in the database
 npm start                  # node server/dist/index.js — serves the built client too
 ```
 

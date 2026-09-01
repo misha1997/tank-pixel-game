@@ -11,7 +11,9 @@ export async function deleteMap(id: string): Promise<boolean> {
   return response.ok;
 }
 
-export async function saveMap(payload: SaveMapPayload): Promise<{ ok: true; map: MapSummary } | { ok: false; error: string }> {
+export async function saveMap(
+  payload: SaveMapPayload,
+): Promise<{ ok: true; map: MapSummary } | { ok: false; error: string }> {
   const response = await fetch('/api/maps', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

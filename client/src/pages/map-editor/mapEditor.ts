@@ -1,7 +1,9 @@
 import { size } from '@tank/shared';
 import type { GameMode, MapCell, MapDefinition, RoomVisibility } from '@tank/shared';
-import { saveMap } from './maps.js';
-import { navigate } from './router.js';
+import { saveMap } from '../../shared/maps.js';
+import { navigate } from '../../core/router.js';
+import { mountPartial } from '../../core/page.js';
+import html from './mapEditor.html?raw';
 
 type Tool = 'wall' | 'brick' | 'base' | 'spawn' | 'erase';
 
@@ -49,12 +51,17 @@ function wireToggleGroup(group: HTMLElement, onChange: (value: string) => void):
 function updateCoopToolVisibility(): void {
   const toolGroup = document.getElementById('editor-tool') as HTMLElement;
   toolGroup.querySelectorAll<HTMLButtonElement>('button').forEach((btn) => {
-    const isCoopOnly = btn.dataset.value === 'brick' || btn.dataset.value === 'base' || btn.dataset.value === 'spawn';
+    const isCoopOnly =
+      btn.dataset.value === 'brick' ||
+      btn.dataset.value === 'base' ||
+      btn.dataset.value === 'spawn';
     btn.classList.toggle('tool-hidden', isCoopOnly && mode !== 'coop');
   });
   if (mode !== 'coop' && (tool === 'brick' || tool === 'base' || tool === 'spawn')) {
     tool = 'wall';
-    toolGroup.querySelectorAll('button').forEach((b) => b.classList.toggle('selected', b.dataset.value === 'wall'));
+    toolGroup
+      .querySelectorAll('button')
+      .forEach((b) => b.classList.toggle('selected', b.dataset.value === 'wall'));
   }
 }
 
@@ -68,7 +75,10 @@ function updateStats(): void {
   const brickCount = cells.size - wallCount;
 
   const statsEl = document.getElementById('editor-stats') as HTMLElement;
-  statsEl.textContent = mode === 'coop' ? `Walls: ${wallCount} · Bricks: ${brickCount} · Spawns: ${enemySpawns.length}/${MAX_ENEMY_SPAWNS}` : `Walls: ${wallCount}`;
+  statsEl.textContent =
+    mode === 'coop'
+      ? `Walls: ${wallCount} · Bricks: ${brickCount} · Spawns: ${enemySpawns.length}/${MAX_ENEMY_SPAWNS}`
+      : `Walls: ${wallCount}`;
   statsEl.classList.remove('editor-info--warn');
 
   if (mode === 'coop' && !base) {
@@ -117,7 +127,13 @@ function render(): void {
   for (const spawn of enemySpawns) {
     ctx.fillStyle = COLORS.spawn;
     ctx.beginPath();
-    ctx.arc(spawn.x * CELL_SIZE + CELL_SIZE / 2, spawn.y * CELL_SIZE + CELL_SIZE / 2, CELL_SIZE / 2 - 2, 0, Math.PI * 2);
+    ctx.arc(
+      spawn.x * CELL_SIZE + CELL_SIZE / 2,
+      spawn.y * CELL_SIZE + CELL_SIZE / 2,
+      CELL_SIZE / 2 - 2,
+      0,
+      Math.PI * 2,
+    );
     ctx.fill();
   }
 
@@ -126,7 +142,12 @@ function render(): void {
     const span = isBaseTool ? 3 : 1;
     ctx.strokeStyle = '#f0b429';
     ctx.lineWidth = 2;
-    ctx.strokeRect(hoverCell.x * CELL_SIZE + 1, hoverCell.y * CELL_SIZE + 1, CELL_SIZE * span - 2, CELL_SIZE * span - 2);
+    ctx.strokeRect(
+      hoverCell.x * CELL_SIZE + 1,
+      hoverCell.y * CELL_SIZE + 1,
+      CELL_SIZE * span - 2,
+      CELL_SIZE * span - 2,
+    );
   }
 
   updateStats();
@@ -178,16 +199,24 @@ function resetState(): void {
   (document.getElementById('editor-name') as HTMLInputElement).value = '';
 
   const modeGroup = document.getElementById('editor-mode') as HTMLElement;
-  modeGroup.querySelectorAll('button').forEach((b) => b.classList.toggle('selected', b.dataset.value === 'pvp'));
+  modeGroup
+    .querySelectorAll('button')
+    .forEach((b) => b.classList.toggle('selected', b.dataset.value === 'pvp'));
 
   const visibilityGroup = document.getElementById('editor-visibility') as HTMLElement;
-  visibilityGroup.querySelectorAll('button').forEach((b) => b.classList.toggle('selected', b.dataset.value === 'public'));
+  visibilityGroup
+    .querySelectorAll('button')
+    .forEach((b) => b.classList.toggle('selected', b.dataset.value === 'public'));
 
   const toolGroup = document.getElementById('editor-tool') as HTMLElement;
-  toolGroup.querySelectorAll('button').forEach((b) => b.classList.toggle('selected', b.dataset.value === 'wall'));
+  toolGroup
+    .querySelectorAll('button')
+    .forEach((b) => b.classList.toggle('selected', b.dataset.value === 'wall'));
 
   const zoomGroup = document.getElementById('editor-zoom') as HTMLElement;
-  zoomGroup.querySelectorAll('button').forEach((b) => b.classList.toggle('selected', b.dataset.value === '1'));
+  zoomGroup
+    .querySelectorAll('button')
+    .forEach((b) => b.classList.toggle('selected', b.dataset.value === '1'));
 
   (document.getElementById('editor-error') as HTMLElement).textContent = '';
 
@@ -315,6 +344,7 @@ function wireOnce(): void {
 
 export function showMapEditor(): void {
   if (!wired) {
+    mountPartial(html);
     wireOnce();
     wired = true;
   }

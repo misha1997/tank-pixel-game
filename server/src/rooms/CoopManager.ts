@@ -5,7 +5,12 @@ import type { ClientToServerEvents, ServerToClientEvents } from '@tank/shared';
 import type { RoomState } from './state.js';
 import { randomInteger } from '../utils/random.js';
 import type { BotAI } from './BotAI.js';
-import { applyWaveScaling, getDifficultyProfile, randomInRange, type ConcreteDifficulty } from './difficulty.js';
+import {
+  applyWaveScaling,
+  getDifficultyProfile,
+  randomInRange,
+  type ConcreteDifficulty,
+} from './difficulty.js';
 import { settleCoopDefeat } from '../matches/settle.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -35,7 +40,11 @@ export class CoopManager {
     }
 
     state.waveSpawnInterval = setInterval(() => {
-      if (state.gameState !== 'playing' || state.enemiesToSpawn <= 0 || state.coopBotCount >= MAX_COOP_BOTS) {
+      if (
+        state.gameState !== 'playing' ||
+        state.enemiesToSpawn <= 0 ||
+        state.coopBotCount >= MAX_COOP_BOTS
+      ) {
         if (state.enemiesToSpawn <= 0 && state.coopBotCount === 0) {
           state.coopWave++;
           setTimeout(() => this.startCoopWave(), 5000);
@@ -200,14 +209,20 @@ export class CoopManager {
 
       const participants = Object.values(state.players)
         .filter((p) => !p.isBot && p.userId && typeof p.rating === 'number')
-        .map((p) => ({ userId: p.userId as string, ratingBefore: p.rating as number, score: p.score }));
+        .map((p) => ({
+          userId: p.userId as string,
+          ratingBefore: p.rating as number,
+          score: p.score,
+        }));
 
-      void settleCoopDefeat({
+      // Unguarded, this would be an unhandled promise rejection on any DB
+      // hiccup — which crashes the whole process, not just this request.
+      settleCoopDefeat({
         mapName: this.mapName,
         durationSec: this.getDurationSec(),
         wave: state.coopWave,
         participants,
-      });
+      }).catch((err) => console.error('Failed to settle co-op defeat', err));
     }
   }
 }

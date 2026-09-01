@@ -9,8 +9,18 @@ function tintFor(id: string): [string, string] {
   return [`hsl(${hue}, 22%, 26%)`, `hsl(${hue}, 22%, 32%)`];
 }
 
-function computeBounds(def: MapDefinition): { minX: number; minY: number; maxX: number; maxY: number } {
-  const points = [...def.walls, ...def.bricks, ...(def.base ? [def.base] : []), ...(def.enemySpawnPoints ?? [])];
+function computeBounds(def: MapDefinition): {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+} {
+  const points = [
+    ...def.walls,
+    ...def.bricks,
+    ...(def.base ? [def.base] : []),
+    ...(def.enemySpawnPoints ?? []),
+  ];
   if (points.length === 0) return { minX: 0, minY: 0, maxX: 1, maxY: 1 };
 
   let minX = Infinity;
@@ -31,7 +41,11 @@ function computeBounds(def: MapDefinition): { minX: number; minY: number; maxX: 
 // backed by a deterministic tinted checkerboard (the look new_template's map
 // cards use as a placeholder) so untinted empty areas still read as "map art"
 // rather than a blank box.
-export function renderMapThumbnail(canvas: HTMLCanvasElement, mapId: string, def: MapDefinition): void {
+export function renderMapThumbnail(
+  canvas: HTMLCanvasElement,
+  mapId: string,
+  def: MapDefinition,
+): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
@@ -57,7 +71,12 @@ export function renderMapThumbnail(canvas: HTMLCanvasElement, mapId: string, def
 
   const plot = (x: number, y: number, color: string, size = cell) => {
     ctx.fillStyle = color;
-    ctx.fillRect(offsetX + (x - bounds.minX) * scale, offsetY + (y - bounds.minY) * scale, size, size);
+    ctx.fillRect(
+      offsetX + (x - bounds.minX) * scale,
+      offsetY + (y - bounds.minY) * scale,
+      size,
+      size,
+    );
   };
 
   for (const wall of def.walls) plot(wall.x, wall.y, '#b45a2a');

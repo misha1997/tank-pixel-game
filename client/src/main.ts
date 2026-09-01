@@ -1,17 +1,17 @@
-import type { ArenaLayout, AuthUser, GameStateSnapshot, RoomSummary } from '@tank/shared';
-import { socket } from './socket.js';
-import View from './view.js';
-import { initAuth } from './auth.js';
-import { showLobby, hideLobby } from './lobby.js';
-import { showAccountPage, hideAccountPage } from './accountPage.js';
-import { loadProfile } from './profile.js';
-import { showCreateRoom, hideCreateRoom } from './createRoom.js';
-import { showChat, hideChat, isTypingIntoField } from './chat.js';
-import { showMatchHud, hideMatchHud, updateMatchHud, showRankCard, hideRankCard } from './hud.js';
-import { showMatchModal, hideMatchModal } from './matchModal.js';
-import { setSettingsContext, hideSettingsModal } from './settingsModal.js';
-import { showMapEditor, hideMapEditor } from './mapEditor.js';
-import { registerRoute, navigate, startRouter, currentGeneration } from './router.js';
+import type { ArenaLayout, AuthUser, GameStateSnapshot } from '@tank/shared';
+import { socket } from './core/socket.js';
+import View from './game/view.js';
+import { playSound } from './game/audio.js';
+import { initAuth } from './pages/auth/auth.js';
+import { showLobby, hideLobby } from './pages/lobby/lobby.js';
+import { showAccountPage, hideAccountPage } from './pages/account/accountPage.js';
+import { showCreateRoom, hideCreateRoom } from './pages/create-room/createRoom.js';
+import { showMapEditor, hideMapEditor } from './pages/map-editor/mapEditor.js';
+import { isTypingIntoField } from './pages/match/chat.js';
+import { updateMatchHud } from './pages/match/hud.js';
+import { showMatchModal } from './pages/match/matchModal.js';
+import { joinRoom } from './pages/match/match.js';
+import { registerRoute, navigate, startRouter } from './core/router.js';
 import {
   MOVEMENT_KEYS,
   queueMovementPress,
@@ -19,9 +19,9 @@ import {
   startInputPipeline,
   trackMovementKeyDown,
   trackMovementKeyUp,
-} from './inputState.js';
-import { initMobileControls } from './mobileControls.js';
-import { initMobileLayout } from './mobileLayout.js';
+} from './core/inputState.js';
+import { initMobileControls } from './pages/match/mobileControls.js';
+import { initMobileLayout } from './pages/match/mobileLayout.js';
 
 const root = document.querySelector<HTMLElement>('#root')!;
 
@@ -97,73 +97,25 @@ function setupRoutes(account: AuthUser | null): void {
   });
 
   registerRoute('/room/:code', ({ code }) => {
-    const generation = currentGeneration();
-    let isHost = false;
-
-    const onRestarted = (room: RoomSummary): void => {
-      setSettingsContext(room, isHost);
-      hideMatchModal();
-      showMatchHud(room);
-      showToast('Host started a new match with updated settings.');
-    };
-
     showMatchLoader();
 
-    socket.emit('lobby:unsubscribe');
-    socket.emit('lobby:join', { code }, (result) => {
-      if (currentGeneration() !== generation) return; // navigated away while this was in flight
-
-      if (!result.ok) {
+    return joinRoom(code, account, root, {
+      onEnter: (v) => {
+        view = v;
+      },
+      onExit: () => {
         finishMatchLoader();
-        showToast(result.error);
-        navigate('/', { replace: true });
-        return;
-      }
-
-      isHost = result.isHost;
-      setSettingsContext(result.room, isHost);
-
-      view = new View(root);
-      showMatchHud(result.room);
-      showRankCard(account);
-      showChat();
-      socket.on('room:restarted', onRestarted);
-
-      // No JOIN BATTLE prompt anymore — spawn immediately with the identity
-      // configured on the /account page (callsign + tank color).
-      const profile = loadProfile(account);
-      socket.emit('new player', {
-        name: profile.name,
-        color: profile.color,
-        roomId: result.room.id,
-        rating: account?.rating,
-        userId: account?.id,
-      });
-
-      // Everything under the loader is mounted now; it lifts as soon as the
-      // arena layout and the first state snapshot have arrived (see the
-      // socket handlers below).
-      matchLoaderAckDone = true;
-      tryRevealMatch();
+        view = null;
+        lastState = null;
+        lastArena = null;
+        root.replaceChildren();
+      },
+      onReady: () => {
+        matchLoaderAckDone = true;
+        tryRevealMatch();
+      },
+      showToast,
     });
-
-    return () => {
-      // Unconditional: the server joins the socket to the room's broadcast
-      // group on 'lobby:join' *before* the ack arrives, so navigating away
-      // mid-round-trip still needs the leave — joinedRoom may be null here.
-      socket.emit('room:leave');
-      socket.off('room:restarted', onRestarted);
-      hideChat();
-      hideSettingsModal();
-      hideMatchHud();
-      hideRankCard();
-      hideMatchModal();
-      finishMatchLoader();
-      view = null;
-      lastState = null;
-      lastArena = null;
-      root.replaceChildren();
-    };
   });
 
   startRouter();
@@ -218,6 +170,7 @@ document.addEventListener('keydown', (event) => {
       }
 
       socket.emit('moveShot');
+      playSound('shot');
       break;
     case 13: // Enter — focus chat
       document.getElementById('chat-input')?.focus();
@@ -236,6 +189,10 @@ socket.on('user dead', (id) => {
       socket.emit('restart');
     }, 2000);
   }
+});
+
+socket.on('user dead sound', () => {
+  playSound('dead');
 });
 
 socket.on('explosion', (data) => {
@@ -288,7 +245,9 @@ socket.on('brick destroyed', (data) => {
   // Apply the delta to our static arena copy — the per-tick snapshot no
   // longer carries bricks.
   if (lastArena) {
-    lastArena.bricks = lastArena.bricks.filter((brick) => !(brick.x === data.x && brick.y === data.y));
+    lastArena.bricks = lastArena.bricks.filter(
+      (brick) => !(brick.x === data.x && brick.y === data.y),
+    );
   }
 });
 

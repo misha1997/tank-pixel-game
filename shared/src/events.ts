@@ -27,7 +27,10 @@ export interface ClientToServerEvents {
   'lobby:join': (data: JoinRoomPayload, ack: (result: RoomActionResult) => void) => void;
   'room:kick': (data: { roomId: string; targetSocketId: string }) => void;
   'room:leave': () => void;
-  'room:updateSettings': (data: UpdateRoomSettingsPayload, ack: (result: RoomActionResult) => void) => void;
+  'room:updateSettings': (
+    data: UpdateRoomSettingsPayload,
+    ack: (result: RoomActionResult) => void,
+  ) => void;
 
   'chat:send': (text: string) => void;
 }

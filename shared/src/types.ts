@@ -111,8 +111,9 @@ export interface NewPlayerPayload {
   name: string;
   color: string;
   roomId: string;
-  rating?: number;
-  userId?: string;
+  // No rating/userId here on purpose — identity and rating are derived
+  // server-side from the session cookie, never trusted from the client
+  // (see getSessionUserIdFromSocket in server/src/auth/session.ts).
 }
 
 export interface AuthUser {
@@ -161,7 +162,8 @@ export interface JoinRoomPayload {
   code: string;
 }
 
-export type RoomActionResult = { ok: true; room: RoomSummary; isHost: boolean } | { ok: false; error: string };
+export type RoomActionResult =
+  { ok: true; room: RoomSummary; isHost: boolean } | { ok: false; error: string };
 
 export interface UpdateRoomSettingsPayload {
   mapId?: string;

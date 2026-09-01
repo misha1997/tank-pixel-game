@@ -11,12 +11,19 @@ import { mapsRouter } from './maps/router.js';
 import { matchesRouter } from './matches/router.js';
 import { RoomManager, LOBBY_WATCHERS_ROOM } from './rooms/RoomManager.js';
 import type { GameRoom } from './rooms/GameRoom.js';
+import { getSessionUserIdFromSocket } from './auth/session.js';
+import { prisma } from './db/prisma.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(server);
+// Runs cookie-parser against Socket.io's handshake requests too, so
+// getSessionUserIdFromSocket() can read the same session cookie Express
+// routes use — this is what lets 'new player' verify identity instead of
+// trusting a client-supplied userId.
+io.engine.use(cookieParser());
 
 const port = Number(process.env.PORT) || 5000;
 app.set('port', port);
@@ -43,8 +50,20 @@ const roomManager = new RoomManager(io);
 
 // Always-on public rooms so there is always something to jump into
 // immediately, on top of whatever players create themselves.
-await roomManager.createRoom({ name: 'Quick Play: PvP Arena', mode: 'pvp', visibility: 'public', hostSocketId: null, isDefault: true });
-await roomManager.createRoom({ name: 'Quick Play: Co-op Defense', mode: 'coop', visibility: 'public', hostSocketId: null, isDefault: true });
+await roomManager.createRoom({
+  name: 'Quick Play: PvP Arena',
+  mode: 'pvp',
+  visibility: 'public',
+  hostSocketId: null,
+  isDefault: true,
+});
+await roomManager.createRoom({
+  name: 'Quick Play: Co-op Defense',
+  mode: 'coop',
+  visibility: 'public',
+  hostSocketId: null,
+  isDefault: true,
+});
 
 const socketRooms = new Map<string, GameRoom>();
 
@@ -74,24 +93,27 @@ io.on('connection', (socket) => {
     socket.leave(LOBBY_WATCHERS_ROOM);
   });
 
-  socket.on('lobby:create', async ({ name, mode, visibility, mapId, botDifficulty, botFillTarget }, ack) => {
-    const trimmed = name.trim().slice(0, 40);
-    if (!trimmed) {
-      ack({ ok: false, error: 'Room name is required.' });
-      return;
-    }
+  socket.on(
+    'lobby:create',
+    async ({ name, mode, visibility, mapId, botDifficulty, botFillTarget }, ack) => {
+      const trimmed = name.trim().slice(0, 40);
+      if (!trimmed) {
+        ack({ ok: false, error: 'Room name is required.' });
+        return;
+      }
 
-    const room = await roomManager.createRoom({
-      name: trimmed,
-      mode,
-      visibility,
-      hostSocketId: socket.id,
-      mapId,
-      botDifficulty,
-      botFillTarget,
-    });
-    ack({ ok: true, room: room.toSummary(), isHost: true });
-  });
+      const room = await roomManager.createRoom({
+        name: trimmed,
+        mode,
+        visibility,
+        hostSocketId: socket.id,
+        mapId,
+        botDifficulty,
+        botFillTarget,
+      });
+      ack({ ok: true, room: room.toSummary(), isHost: true });
+    },
+  );
 
   socket.on('lobby:join', ({ code }, ack) => {
     const room = roomManager.getByCode(code.trim());
@@ -128,9 +150,29 @@ io.on('connection', (socket) => {
     roomManager.broadcastLobby();
   });
 
-  socket.on('new player', ({ name, color, roomId, rating, userId }) => {
+  socket.on('new player', async ({ name, color, roomId }) => {
     const room = roomManager.get(roomId);
     if (!room) return;
+
+    // userId/rating come from the verified session + DB, never from the
+    // client payload — a socket can claim to be anyone otherwise, which
+    // would let it manipulate someone else's rating via match settlement.
+    let userId: string | undefined;
+    let rating: number | undefined;
+    const sessionUserId = getSessionUserIdFromSocket(socket);
+    if (sessionUserId) {
+      try {
+        const user = await prisma.user.findUnique({ where: { id: sessionUserId } });
+        if (user) {
+          userId = user.id;
+          rating = user.rating;
+        }
+      } catch (err) {
+        // A DB hiccup here must not crash the server, and must not fall
+        // back to trusting the client — just treat the join as a guest.
+        console.error('Failed to look up session user for new player', err);
+      }
+    }
 
     console.log('New player:', name, 'Color:', color, 'Room:', room.name);
 

@@ -1,0 +1,74 @@
+<div id="editor-overlay" class="hidden">
+  <h1 class="sr-only">Map Editor</h1>
+  <div class="editor-layout">
+    <main class="arena-shell">
+      <canvas id="editor-canvas"></canvas>
+    </main>
+
+    <aside class="side pixel-ui">
+      <section>
+        <div class="editor-field-group">
+          <label class="editor-label" for="editor-name">Map Name</label>
+          <input
+            type="text"
+            id="editor-name"
+            class="editor-input"
+            maxlength="40"
+            placeholder="Map name"
+            autocomplete="off"
+          />
+        </div>
+        <div class="editor-field-group">
+          <label class="editor-label">Mode</label>
+          <div class="lobby-toggle-group editor-toggle-grid" id="editor-mode">
+            <button type="button" class="mode-btn selected" data-value="pvp">PvP</button>
+            <button type="button" class="mode-btn" data-value="coop">Co-op</button>
+          </div>
+        </div>
+        <div class="editor-field-group">
+          <label class="editor-label">Visibility</label>
+          <div class="lobby-toggle-group editor-toggle-grid" id="editor-visibility">
+            <button type="button" class="mode-btn selected" data-value="public">Public</button>
+            <button type="button" class="mode-btn" data-value="private">Private</button>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="editor-field-group">
+          <label class="editor-label">Tool</label>
+          <div class="lobby-toggle-group editor-toggle-grid" id="editor-tool">
+            <button type="button" class="mode-btn selected" data-value="wall">Wall</button>
+            <button type="button" class="mode-btn" data-value="brick">Brick</button>
+            <button type="button" class="mode-btn" data-value="base">Base</button>
+            <button type="button" class="mode-btn" data-value="spawn">Enemy Spawn</button>
+            <button type="button" class="mode-btn" data-value="erase">Erase</button>
+          </div>
+        </div>
+        <div class="editor-field-group">
+          <label class="editor-label">Zoom</label>
+          <div class="lobby-toggle-group editor-toggle-grid" id="editor-zoom">
+            <button type="button" class="mode-btn" data-value="0.5">50%</button>
+            <button type="button" class="mode-btn" data-value="0.75">75%</button>
+            <button type="button" class="mode-btn selected" data-value="1">100%</button>
+            <button type="button" class="mode-btn" data-value="1.5">150%</button>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="editor-stats-row">
+          <span id="editor-stats" class="editor-info"></span>
+          <span id="editor-coords" class="editor-info"></span>
+        </div>
+      </section>
+
+      <section class="editor-actions">
+        <button type="button" id="editor-back-btn" class="btn o">&larr; Back to Lobby</button>
+        <button type="button" id="editor-clear-btn" class="btn o">Clear Map</button>
+        <button type="button" id="editor-save-btn" class="btn o">SAVE MAP</button>
+        <div id="editor-error" class="auth-error"></div>
+      </section>
+    </aside>
+  </div>
+</div>

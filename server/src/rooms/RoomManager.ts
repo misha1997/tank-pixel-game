@@ -1,6 +1,12 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { Server } from 'socket.io';
-import type { BotDifficulty, ClientToServerEvents, GameMode, RoomVisibility, ServerToClientEvents } from '@tank/shared';
+import type {
+  BotDifficulty,
+  ClientToServerEvents,
+  GameMode,
+  RoomVisibility,
+  ServerToClientEvents,
+} from '@tank/shared';
 import { GameRoom } from './GameRoom.js';
 import { resolveMap } from '../maps/resolve.js';
 
@@ -85,7 +91,10 @@ export class RoomManager {
   private generateCode(): string {
     let code: string;
     do {
-      code = Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
+      code = Array.from(
+        { length: 6 },
+        () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)],
+      ).join('');
     } while (this.roomsByCode.has(code));
     return code;
   }

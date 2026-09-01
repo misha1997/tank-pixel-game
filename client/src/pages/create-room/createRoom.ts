@@ -1,8 +1,10 @@
 import type { BotDifficulty, GameMode, MapSummary, RoomVisibility } from '@tank/shared';
-import { socket } from './socket.js';
-import { fetchMaps, deleteMap } from './maps.js';
-import { renderMapThumbnail } from './mapThumbnail.js';
-import { navigate } from './router.js';
+import { socket } from '../../core/socket.js';
+import { navigate } from '../../core/router.js';
+import { mountPartial } from '../../core/page.js';
+import { fetchMaps, deleteMap } from '../../shared/maps.js';
+import { createMapCard } from '../../shared/mapCard.js';
+import html from './createRoom.html?raw';
 
 type MapScope = 'all' | 'mine';
 
@@ -18,16 +20,14 @@ const state = {
 let wired = false;
 let maps: MapSummary[] = [];
 
-function pressed(group: HTMLElement): string {
-  return group.querySelector<HTMLElement>('[aria-pressed="true"]')?.dataset.value ?? '';
-}
-
 function segment(id: string, onSelect: (value: string) => void): void {
   const box = document.getElementById(id) as HTMLElement;
   box.addEventListener('click', (event) => {
     const btn = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
     if (!btn || !box.contains(btn)) return;
-    Array.from(box.children).forEach((child) => child.setAttribute('aria-pressed', String(child === btn)));
+    Array.from(box.children).forEach((child) =>
+      child.setAttribute('aria-pressed', String(child === btn)),
+    );
     onSelect(btn.dataset.value ?? '');
   });
 }
@@ -64,38 +64,27 @@ function renderGrid(): void {
   grid.replaceChildren();
 
   for (const map of maps) {
-    const card = document.createElement('button');
-    card.type = 'button';
-    card.className = 'card';
-    card.setAttribute('aria-pressed', String(map.id === state.mapId));
-
-    const thumb = document.createElement('canvas');
-    thumb.className = 'thumb';
-    thumb.width = 96;
-    thumb.height = 64;
-    renderMapThumbnail(thumb, map.id, map.data);
-
-    const caption = document.createElement('span');
-    caption.className = 'cap o';
-    caption.textContent = map.isBuiltin ? `${map.name} (Built-in)` : map.ownerName ? `${map.name} (by ${map.ownerName})` : map.name;
-
-    card.append(thumb, caption);
-
-    if (state.mapScope === 'mine' && !map.isBuiltin) {
-      const del = document.createElement('span');
-      del.className = 'card-delete';
-      del.textContent = '×';
-      del.title = 'Delete map';
-      del.addEventListener('click', async (event) => {
-        event.stopPropagation();
-        if (await deleteMap(map.id)) refreshMaps();
-      });
-      card.appendChild(del);
-    }
-
-    card.addEventListener('click', () => {
-      state.mapId = map.id;
-      grid.querySelectorAll('.card').forEach((c) => c.setAttribute('aria-pressed', String(c === card)));
+    const card = createMapCard({
+      map,
+      selected: map.id === state.mapId,
+      caption: (m) =>
+        m.isBuiltin
+          ? `${m.name} (Built-in)`
+          : m.ownerName
+            ? `${m.name} (by ${m.ownerName})`
+            : m.name,
+      onDelete:
+        state.mapScope === 'mine' && !map.isBuiltin
+          ? async (m) => {
+              if (await deleteMap(m.id)) refreshMaps();
+            }
+          : undefined,
+      onSelect: (m, cardEl) => {
+        state.mapId = m.id;
+        grid
+          .querySelectorAll('.card')
+          .forEach((c) => c.setAttribute('aria-pressed', String(c === cardEl)));
+      },
     });
 
     grid.appendChild(card);
@@ -143,7 +132,8 @@ function wireOnce(): void {
 
   submitBtn.addEventListener('click', () => {
     errorBox.textContent = '';
-    const name = nameInput.value.trim() || `${localStorage.getItem('playerName') ?? 'Guest'}'s Room`;
+    const name =
+      nameInput.value.trim() || `${localStorage.getItem('playerName') ?? 'Guest'}'s Room`;
 
     socket.emit(
       'lobby:create',
@@ -165,11 +155,14 @@ function wireOnce(): void {
     );
   });
 
-  mapScopeGroup.querySelectorAll('button').forEach((btn) => btn.setAttribute('aria-pressed', String(btn.dataset.value === 'all')));
+  mapScopeGroup
+    .querySelectorAll('button')
+    .forEach((btn) => btn.setAttribute('aria-pressed', String(btn.dataset.value === 'all')));
 }
 
 export function showCreateRoom(): void {
   if (!wired) {
+    mountPartial(html);
     wireOnce();
     wired = true;
   }
@@ -179,9 +172,12 @@ export function showCreateRoom(): void {
   (document.getElementById('create-room-error') as HTMLElement).textContent = '';
 
   state.mapScope = 'all';
-  document.getElementById('create-room-map-scope')?.querySelectorAll('button').forEach((btn) =>
-    btn.setAttribute('aria-pressed', String(btn.getAttribute('data-value') === 'all')),
-  );
+  document
+    .getElementById('create-room-map-scope')
+    ?.querySelectorAll('button')
+    .forEach((btn) =>
+      btn.setAttribute('aria-pressed', String(btn.getAttribute('data-value') === 'all')),
+    );
 
   updateFillVisibility();
   refreshMaps();

@@ -18,7 +18,12 @@ function clamp(value: number, min: number, max: number): number {
 // rather than the full arena grid, which is sized for the largest maps and
 // dwarfs most hand-built or generated ones.
 function computeMapBounds(definition: MapDefinition, base: MapCell): MapBounds {
-  const points: MapCell[] = [...definition.walls, ...definition.bricks, base, ...(definition.enemySpawnPoints ?? [])];
+  const points: MapCell[] = [
+    ...definition.walls,
+    ...definition.bricks,
+    base,
+    ...(definition.enemySpawnPoints ?? []),
+  ];
 
   const maxX = size.col - 3;
   const maxY = size.row - 3;
@@ -52,7 +57,12 @@ export class MapGenerator {
     const { state } = this;
 
     state.walls = definition.walls.map((cell) => ({ x: cell.x, y: cell.y, type: 'wall' as const }));
-    state.bricks = definition.bricks.map((cell) => ({ x: cell.x, y: cell.y, type: 'brick' as const, health: 1 }));
+    state.bricks = definition.bricks.map((cell) => ({
+      x: cell.x,
+      y: cell.y,
+      type: 'brick' as const,
+      health: 1,
+    }));
     rebuildBlockedCellSets(state);
 
     if (mode === 'coop') {

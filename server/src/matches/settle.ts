@@ -15,7 +15,8 @@ export async function settlePvpDeparture(params: {
 }): Promise<void> {
   if (params.opponentAvgRating === null) return; // nothing rated to compare against
 
-  const actual = params.score > params.opponentAvgScore ? 1 : params.score < params.opponentAvgScore ? 0 : 0.5;
+  const actual =
+    params.score > params.opponentAvgScore ? 1 : params.score < params.opponentAvgScore ? 0 : 0.5;
   const expected = 1 / (1 + 10 ** ((params.opponentAvgRating - params.ratingBefore) / 400));
   const delta = Math.round(PVP_K_FACTOR * (actual - expected));
   const ratingAfter = Math.max(0, params.ratingBefore + delta);

@@ -13,7 +13,9 @@ export interface SessionPayload {
 }
 
 export function signSessionToken(userId: string): string {
-  return jwt.sign({ sub: userId } satisfies SessionPayload, SESSION_SECRET, { expiresIn: SESSION_TTL });
+  return jwt.sign({ sub: userId } satisfies SessionPayload, SESSION_SECRET, {
+    expiresIn: SESSION_TTL,
+  });
 }
 
 export function verifySessionToken(token: string): SessionPayload | null {

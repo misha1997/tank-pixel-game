@@ -1,11 +1,32 @@
 import type { ChatMessage } from '@tank/shared';
-import { socket } from './socket.js';
+import { socket } from '../../core/socket.js';
 
 const MAX_ROWS = 60;
 const EMOJIS = [
-  '😀', '😂', '😎', '🔥', '💥', '🎯', '🏆', '😡',
-  '👍', '👎', '❤️', '💀', '🚀', '⚡', '🛡️', '🎮',
-  '😱', '🙌', '👏', '🤔', '😢', '🤝', '🥳', '✨',
+  '😀',
+  '😂',
+  '😎',
+  '🔥',
+  '💥',
+  '🎯',
+  '🏆',
+  '😡',
+  '👍',
+  '👎',
+  '❤️',
+  '💀',
+  '🚀',
+  '⚡',
+  '🛡️',
+  '🎮',
+  '😱',
+  '🙌',
+  '👏',
+  '🤔',
+  '😢',
+  '🤝',
+  '🥳',
+  '✨',
 ];
 let wired = false;
 let active = false;

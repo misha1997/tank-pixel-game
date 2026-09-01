@@ -1,0 +1,46 @@
+<div id="lobby-overlay" class="hidden">
+  <div class="screen">
+    <div class="field pixel-ui">
+      <div class="lobby-shell">
+        <h1 class="sr-only">TANK BATTLE — online multiplayer pixel tank game</h1>
+        <div class="lobby-nav">
+          <button type="button" class="btn o" id="lobby-account-btn">Account</button>
+          <button type="button" class="btn o" id="lobby-logout-btn">Log Out</button>
+        </div>
+        <div id="lobby-account" class="whoami o"></div>
+
+        <div class="lobby-columns">
+          <div class="panel">
+            <span class="deco tl"></span><span class="deco tr"></span> <span class="deco bl"></span
+            ><span class="deco br"></span>
+            <div class="tab"><h2 class="o">PUBLIC ROOMS</h2></div>
+            <div class="well" id="lobby-room-list"></div>
+          </div>
+
+          <div class="panel">
+            <span class="deco tl"></span><span class="deco tr"></span> <span class="deco bl"></span
+            ><span class="deco br"></span>
+            <div class="tab"><h2 class="o">PLAY</h2></div>
+            <div class="well">
+              <input
+                class="field-input"
+                id="lobby-join-code"
+                type="text"
+                placeholder="CODE"
+                maxlength="6"
+                autocomplete="off"
+                spellcheck="false"
+                aria-label="Room code"
+              />
+              <div class="btn-row">
+                <button class="btn o" type="button" id="lobby-create-btn">CREATE ROOM</button>
+                <button class="btn o" type="button" id="lobby-join-btn">JOIN BY CODE</button>
+              </div>
+              <div id="lobby-error" class="err o" role="alert"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

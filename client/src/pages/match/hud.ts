@@ -1,6 +1,6 @@
 import { size } from '@tank/shared';
 import type { ArenaLayout, AuthUser, GameStateSnapshot, RoomSummary } from '@tank/shared';
-import { navigate } from './router.js';
+import { navigate } from '../../core/router.js';
 import { showSettingsModal } from './settingsModal.js';
 
 let wired = false;
@@ -35,14 +35,20 @@ function line(text: string, className?: string): HTMLElement {
   return el;
 }
 
-function renderCoopStatus(body: HTMLElement, data: GameStateSnapshot, myPlayerId: string | null): void {
+function renderCoopStatus(
+  body: HTMLElement,
+  data: GameStateSnapshot,
+  myPlayerId: string | null,
+): void {
   body.appendChild(line(`WAVE: ${data.wave || 1}`));
   body.appendChild(line(`ENEMIES: ${data.enemiesRemaining || 0}`));
   body.appendChild(line(`KILLED: ${data.enemiesKilled || 0}`));
 
   if (data.base) {
     const ok = data.base.health > 0;
-    body.appendChild(line(`BASE: ${ok ? 'OK' : 'DESTROYED'}`, ok ? 'match-line--ok' : 'match-line--danger'));
+    body.appendChild(
+      line(`BASE: ${ok ? 'OK' : 'DESTROYED'}`, ok ? 'match-line--ok' : 'match-line--danger'),
+    );
   }
 
   if (data.gameState === 'defeat') {
@@ -64,7 +70,11 @@ function renderCoopStatus(body: HTMLElement, data: GameStateSnapshot, myPlayerId
   body.appendChild(roster);
 }
 
-function renderPvpStatus(body: HTMLElement, data: GameStateSnapshot, myPlayerId: string | null): void {
+function renderPvpStatus(
+  body: HTMLElement,
+  data: GameStateSnapshot,
+  myPlayerId: string | null,
+): void {
   const players = Object.entries(data.players).sort((a, b) => b[1].score - a[1].score);
   body.appendChild(line(`PLAYERS: ${players.length}`));
 
@@ -82,7 +92,11 @@ function renderPvpStatus(body: HTMLElement, data: GameStateSnapshot, myPlayerId:
   body.appendChild(roster);
 }
 
-function drawMinimap(data: GameStateSnapshot, arena: ArenaLayout | null, myPlayerId: string | null): void {
+function drawMinimap(
+  data: GameStateSnapshot,
+  arena: ArenaLayout | null,
+  myPlayerId: string | null,
+): void {
   const canvas = document.getElementById('minimap-canvas') as HTMLCanvasElement | null;
   if (!canvas) return;
 
@@ -108,7 +122,8 @@ function drawMinimap(data: GameStateSnapshot, arena: ArenaLayout | null, myPlaye
 
   for (const brick of arena?.bricks ?? []) {
     ctx.fillStyle = '#cc6633';
-    if (brick.health > 0) ctx.fillRect(brick.x * scaleX, brick.y * scaleY, Math.max(2, scaleX), Math.max(2, scaleY));
+    if (brick.health > 0)
+      ctx.fillRect(brick.x * scaleX, brick.y * scaleY, Math.max(2, scaleX), Math.max(2, scaleY));
   }
 
   if (data.base && data.base.health > 0) {
@@ -139,7 +154,11 @@ function drawMinimap(data: GameStateSnapshot, arena: ArenaLayout | null, myPlaye
   }
 }
 
-export function updateMatchHud(data: GameStateSnapshot, arena: ArenaLayout | null, myPlayerId: string | null): void {
+export function updateMatchHud(
+  data: GameStateSnapshot,
+  arena: ArenaLayout | null,
+  myPlayerId: string | null,
+): void {
   const body = document.getElementById('match-status-body');
   if (body) {
     body.replaceChildren();

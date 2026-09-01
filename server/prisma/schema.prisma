@@ -15,6 +15,7 @@ model User {
   createdAt    DateTime           @default(now())
   maps         Map[]
   participations MatchParticipant[]
+  chatMessages ChatMessage[]
 }
 
 model Map {
@@ -23,12 +24,31 @@ model Map {
   mode       String
   visibility String
   data       Json
+  isBuiltin  Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  ownerId    String
-  owner      User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId    String?
+  owner      User?    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@index([mode, visibility])
+}
+
+// One row per chat message, across every room (including the always-on
+// quick-play rooms). roomId is GameRoom's internal uuid — rooms themselves
+// aren't persisted, this is purely a durable log. authorId is null for
+// guests and system messages; authorName is kept as plain text so it
+// survives a later username change or the author's account being deleted.
+model ChatMessage {
+  id         String   @id @default(uuid())
+  roomId     String
+  authorId   String?
+  author     User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  authorName String?
+  text       String   @db.VarChar(200)
+  system     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([roomId, createdAt])
 }
 
 model Match {

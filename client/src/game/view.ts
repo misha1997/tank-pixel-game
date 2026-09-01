@@ -1,5 +1,11 @@
 import { positionPiece, size } from '@tank/shared';
-import type { ArenaLayout, BaseState, BrickState, GameStateSnapshot, PlayerState, WallState } from '@tank/shared';
+import type {
+  ArenaLayout,
+  BaseState,
+  BrickState,
+  GameStateSnapshot,
+  WallState,
+} from '@tank/shared';
 
 // Pixel size pinned to the original prototype (D:\ProjectNode\tank-pixel-game,
 // static/view.js) — a fixed 22px cell, not scaled to fit the container. The
@@ -86,7 +92,12 @@ export default class View {
 
   private drawBackground(): void {
     this.backgroundContext.fillStyle = this.colors.background;
-    this.backgroundContext.fillRect(0, 0, this.backgroundCanvas.width, this.backgroundCanvas.height);
+    this.backgroundContext.fillRect(
+      0,
+      0,
+      this.backgroundCanvas.width,
+      this.backgroundCanvas.height,
+    );
 
     for (let y = 0; y < size.row; y++) {
       for (let x = 0; x < size.col; x++) {
@@ -111,7 +122,12 @@ export default class View {
     );
 
     ctx.fillStyle = this.colors.empty;
-    ctx.fillRect(xPos + this.innerCellOffset, yPos + this.innerCellOffset, this.innerCellSize, this.innerCellSize);
+    ctx.fillRect(
+      xPos + this.innerCellOffset,
+      yPos + this.innerCellOffset,
+      this.innerCellSize,
+      this.innerCellSize,
+    );
   }
 
   render(data: GameStateSnapshot, arena: ArenaLayout | null, myPlayerId: string | null): void {
@@ -125,8 +141,12 @@ export default class View {
     // Rounded to a whole pixel — a fractional translate() would blur every
     // crisp 1px cell border via anti-aliasing instead of landing on exact
     // pixel boundaries like the original's untranslated grid did.
-    const cameraX = Math.round(clamp(centerX - this.width / 2, 0, Math.max(0, mapWidth - this.width)));
-    const cameraY = Math.round(clamp(centerY - this.height / 2, 0, Math.max(0, mapHeight - this.height)));
+    const cameraX = Math.round(
+      clamp(centerX - this.width / 2, 0, Math.max(0, mapWidth - this.width)),
+    );
+    const cameraY = Math.round(
+      clamp(centerY - this.height / 2, 0, Math.max(0, mapHeight - this.height)),
+    );
 
     // Reset to the DPR scale (see resize()) before every frame — everything
     // below keeps drawing in logical/CSS pixel coordinates on top of it.
@@ -182,7 +202,12 @@ export default class View {
     );
 
     this.context.fillStyle = '#8b4513';
-    this.context.fillRect(xPos + this.innerCellOffset, yPos + this.innerCellOffset, this.innerCellSize, this.innerCellSize);
+    this.context.fillRect(
+      xPos + this.innerCellOffset,
+      yPos + this.innerCellOffset,
+      this.innerCellSize,
+      this.innerCellSize,
+    );
   }
 
   private renderBricks(bricks: BrickState[]): void {
@@ -318,6 +343,11 @@ export default class View {
     );
 
     this.context.fillStyle = fillStyle;
-    this.context.fillRect(xPos + this.innerCellOffset, yPos + this.innerCellOffset, this.innerCellSize, this.innerCellSize);
+    this.context.fillRect(
+      xPos + this.innerCellOffset,
+      yPos + this.innerCellOffset,
+      this.innerCellSize,
+      this.innerCellSize,
+    );
   }
 }

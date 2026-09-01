@@ -1,12 +1,13 @@
 import type { GameStateSnapshot } from '@tank/shared';
-import { socket } from './socket.js';
+import { socket } from '../../core/socket.js';
+import { playSound } from '../../game/audio.js';
 import {
   DPAD_CODES,
   queueMovementPress,
   trackMovementKeyDown,
   trackMovementKeyUp,
   type MovementInput,
-} from './inputState.js';
+} from '../../core/inputState.js';
 
 const AUTOFIRE_INTERVAL = 250;
 
@@ -19,7 +20,9 @@ export function initMobileControls(options: InitOptions): void {
   // D-pad: press-and-hold streams via the shared held-key stack (latest
   // direction wins), plus one immediate throttled step on touch-down so the
   // tank reacts without waiting for the poll tick.
-  for (const btn of Array.from(document.querySelectorAll<HTMLButtonElement>('#mobile-controls [data-move]'))) {
+  for (const btn of Array.from(
+    document.querySelectorAll<HTMLButtonElement>('#mobile-controls [data-move]'),
+  )) {
     const direction = btn.dataset.move as MovementInput;
     const pseudoCode = DPAD_CODES[direction];
 
@@ -47,7 +50,10 @@ export function initMobileControls(options: InitOptions): void {
   };
 
   const shoot = (): void => {
-    if (canShoot()) socket.emit('moveShot');
+    if (canShoot()) {
+      socket.emit('moveShot');
+      playSound('shot');
+    }
   };
 
   fireBtn?.addEventListener('pointerdown', (event) => {

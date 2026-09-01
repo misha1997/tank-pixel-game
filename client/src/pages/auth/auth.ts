@@ -1,5 +1,7 @@
 import type { AuthUser } from '@tank/shared';
-import { sanitizeLogin } from './profile.js';
+import { sanitizeLogin } from '../../core/profile.js';
+import { mountPartial } from '../../core/page.js';
+import html from './auth.html?raw';
 
 type AuthTab = 'login' | 'register';
 
@@ -14,6 +16,7 @@ export async function logout(): Promise<void> {
 }
 
 export async function initAuth(onReady: (account: AuthUser | null) => void): Promise<void> {
+  mountPartial(html);
   const overlay = document.getElementById('auth-overlay') as HTMLElement;
   const preloader = document.getElementById('preloader') as HTMLElement;
 
@@ -100,7 +103,10 @@ export async function initAuth(onReady: (account: AuthUser | null) => void): Pro
     if (sanitized !== usernameInput.value) {
       const caret = usernameInput.selectionStart;
       usernameInput.value = sanitized;
-      usernameInput.setSelectionRange(caret === null ? null : Math.min(caret, sanitized.length), caret === null ? null : Math.min(caret, sanitized.length));
+      usernameInput.setSelectionRange(
+        caret === null ? null : Math.min(caret, sanitized.length),
+        caret === null ? null : Math.min(caret, sanitized.length),
+      );
     }
   });
 }

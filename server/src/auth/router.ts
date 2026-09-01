@@ -26,7 +26,9 @@ authRouter.post('/register', async (req, res) => {
   const { username, password } = req.body ?? {};
 
   if (typeof username !== 'string' || !USERNAME_PATTERN.test(username)) {
-    res.status(400).json({ error: 'Username must be 3-12 characters (English letters and numbers).' });
+    res
+      .status(400)
+      .json({ error: 'Username must be 3-12 characters (English letters and numbers).' });
     return;
   }
   if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
@@ -83,7 +85,9 @@ authRouter.post('/change-username', async (req, res) => {
 
   const { username } = req.body ?? {};
   if (typeof username !== 'string' || !USERNAME_PATTERN.test(username)) {
-    res.status(400).json({ error: 'Username must be 3-12 characters (English letters and numbers).' });
+    res
+      .status(400)
+      .json({ error: 'Username must be 3-12 characters (English letters and numbers).' });
     return;
   }
 
@@ -115,7 +119,9 @@ authRouter.post('/change-password', async (req, res) => {
     typeof newPassword !== 'string' ||
     newPassword.length < MIN_PASSWORD_LENGTH
   ) {
-    res.status(400).json({ error: `New password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
+    res
+      .status(400)
+      .json({ error: `New password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
     return;
   }
 

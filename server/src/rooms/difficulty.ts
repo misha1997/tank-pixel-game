@@ -18,7 +18,10 @@ const DIFFICULTY_PROFILES: Record<ConcreteDifficulty, DifficultyProfile> = {
 // (logged-in) humans to gauge against.
 const ADAPTIVE_FALLBACK: ConcreteDifficulty = 'normal';
 
-export function resolveConcreteDifficulty(requested: BotDifficulty, avgHumanRating: number | null): ConcreteDifficulty {
+export function resolveConcreteDifficulty(
+  requested: BotDifficulty,
+  avgHumanRating: number | null,
+): ConcreteDifficulty {
   if (requested !== 'adaptive') return requested;
   if (avgHumanRating === null) return ADAPTIVE_FALLBACK;
   if (avgHumanRating < 900) return 'easy';

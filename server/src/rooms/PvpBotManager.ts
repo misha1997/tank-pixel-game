@@ -5,7 +5,12 @@ import { randomInteger } from '../utils/random.js';
 import type { BulletManager } from './BulletManager.js';
 import type { PlayerManager } from './PlayerManager.js';
 import type { BotAI } from './BotAI.js';
-import { getDifficultyProfile, randomInRange, type ConcreteDifficulty, type DifficultyProfile } from './difficulty.js';
+import {
+  getDifficultyProfile,
+  randomInRange,
+  type ConcreteDifficulty,
+  type DifficultyProfile,
+} from './difficulty.js';
 
 const FACINGS: TankFacing[] = ['top', 'left', 'right', 'bottom'];
 
@@ -141,7 +146,9 @@ export class PvpBotManager {
     }
 
     if (!memory) return;
-    const move = this.ai.planPursuit(bot, memory, target, avoidBots) ?? this.ai.getRandomValidMove(bot, avoidBots);
+    const move =
+      this.ai.planPursuit(bot, memory, target, avoidBots) ??
+      this.ai.getRandomValidMove(bot, avoidBots);
     if (move) {
       this.ai.tryMove(botId, move.dx, move.dy, move.pos);
     }

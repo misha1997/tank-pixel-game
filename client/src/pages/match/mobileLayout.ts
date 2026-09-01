@@ -1,4 +1,4 @@
-import { navigate } from './router.js';
+import { navigate } from '../../core/router.js';
 import { showSettingsModal } from './settingsModal.js';
 
 const MOBILE_QUERY = '(max-width: 900px)';
@@ -69,9 +69,13 @@ export function initMobileLayout(): void {
   relayout();
 
   document.getElementById('mc-map-toggle')?.addEventListener('click', () => openMobileModal('map'));
-  document.getElementById('mc-players-toggle')?.addEventListener('click', () => openMobileModal('players'));
+  document
+    .getElementById('mc-players-toggle')
+    ?.addEventListener('click', () => openMobileModal('players'));
   document.getElementById('mc-chat-toggle')?.addEventListener('click', toggleChatDockCollapsed);
-  document.getElementById('mc-settings-toggle')?.addEventListener('click', () => showSettingsModal());
+  document
+    .getElementById('mc-settings-toggle')
+    ?.addEventListener('click', () => showSettingsModal());
   document.getElementById('mc-exit')?.addEventListener('click', () => navigate('/'));
 
   for (const id of ['map-modal', 'players-modal']) {

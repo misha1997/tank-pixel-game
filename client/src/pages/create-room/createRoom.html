@@ -1,0 +1,110 @@
+<div id="create-room-overlay" class="hidden">
+  <div class="screen">
+    <div class="field pixel-ui">
+      <div class="panel panel--wide">
+        <span class="deco tl"></span><span class="deco tr"></span> <span class="deco bl"></span
+        ><span class="deco br"></span>
+        <div class="tab"><h1 class="o">CREATE ROOM</h1></div>
+
+        <div class="cols">
+          <section class="col col-maps">
+            <div class="maps-toolbar">
+              <h2 class="o">MAP SELECTION</h2>
+              <div class="seg" id="create-room-map-scope" role="group" aria-label="Map scope">
+                <button class="btn o" type="button" data-value="all" aria-pressed="true">
+                  ALL
+                </button>
+                <button class="btn o" type="button" data-value="mine" aria-pressed="false">
+                  MY MAPS
+                </button>
+              </div>
+            </div>
+            <div class="well">
+              <div class="grid" id="create-room-maps" role="group" aria-label="Map selection"></div>
+            </div>
+            <button class="btn o" type="button" id="create-room-new-map-btn">+ New Map</button>
+          </section>
+
+          <section class="col col-cfg">
+            <h2 class="o">ROOM CONFIGURATION</h2>
+            <div class="well" style="border: 0">
+              <input
+                class="field-input"
+                id="create-room-name"
+                placeholder="Room name"
+                maxlength="40"
+                autocomplete="off"
+                spellcheck="false"
+                aria-label="Room name"
+              />
+
+              <h3 class="o">MODE</h3>
+              <div class="seg" id="create-room-mode" role="group" aria-label="Mode">
+                <button class="btn o" type="button" data-value="pvp" aria-pressed="true">
+                  PVP
+                </button>
+                <button class="btn o" type="button" data-value="coop" aria-pressed="false">
+                  CO-OP
+                </button>
+              </div>
+
+              <h3 class="o">VISIBILITY</h3>
+              <div class="seg" id="create-room-visibility" role="group" aria-label="Visibility">
+                <button class="btn o" type="button" data-value="public" aria-pressed="true">
+                  PUBLIC
+                </button>
+                <button class="btn o" type="button" data-value="private" aria-pressed="false">
+                  PRIVATE
+                </button>
+              </div>
+
+              <h3 class="o">BOT DIFFICULTY</h3>
+              <div class="seg" id="create-room-difficulty" role="group" aria-label="Bot difficulty">
+                <button class="btn o" type="button" data-value="easy" aria-pressed="false">
+                  EASY
+                </button>
+                <button class="btn o" type="button" data-value="normal" aria-pressed="true">
+                  NORMAL
+                </button>
+                <button class="btn o" type="button" data-value="hard" aria-pressed="false">
+                  HARD
+                </button>
+                <button class="btn o" type="button" data-value="adaptive" aria-pressed="false">
+                  ADAPTIVE
+                </button>
+              </div>
+
+              <h3 class="o" id="create-room-fill-label">BOT FILL TARGET</h3>
+              <div class="stepper" id="create-room-fill-row">
+                <button class="btn o" type="button" id="create-room-fill-minus" aria-label="Less">
+                  &minus;
+                </button>
+                <input
+                  class="count"
+                  id="create-room-fill"
+                  type="number"
+                  min="0"
+                  max="8"
+                  step="1"
+                  value="3"
+                  aria-label="Bot fill target"
+                />
+                <button class="btn o" type="button" id="create-room-fill-plus" aria-label="More">
+                  +
+                </button>
+              </div>
+
+              <button class="btn create o" type="button" id="create-room-submit">
+                CREATE ROOM
+              </button>
+              <button class="guest o" type="button" id="create-room-back-btn">
+                &larr; Back to Lobby
+              </button>
+              <p class="err o" role="alert" id="create-room-error"></p>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

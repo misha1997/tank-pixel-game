@@ -28,6 +28,7 @@ import { PvpBotManager } from './PvpBotManager.js';
 import { resolveConcreteDifficulty, type ConcreteDifficulty } from './difficulty.js';
 import { settlePvpDeparture } from '../matches/settle.js';
 import { resolveMap } from '../maps/resolve.js';
+import { prisma } from '../db/prisma.js';
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -80,7 +81,10 @@ export class GameRoom {
   private readonly lastChatAt = new Map<string, number>();
   private matchStartedAt = 0;
 
-  constructor(options: GameRoomOptions, private readonly io: TypedServer) {
+  constructor(
+    options: GameRoomOptions,
+    private readonly io: TypedServer,
+  ) {
     this.id = options.id;
     this.code = options.code;
     this.name = options.name;
@@ -89,14 +93,22 @@ export class GameRoom {
     this.hostSocketId = options.hostSocketId;
     this.isDefault = options.isDefault;
     this.requestedDifficulty = options.botDifficulty ?? 'normal';
-    this.botFillTarget = Math.max(0, Math.min(MAX_ROOM_PLAYERS, options.botFillTarget ?? DEFAULT_BOT_FILL_TARGET));
+    this.botFillTarget = Math.max(
+      0,
+      Math.min(MAX_ROOM_PLAYERS, options.botFillTarget ?? DEFAULT_BOT_FILL_TARGET),
+    );
     this.mapName = options.mapName;
     this.currentMapId = options.mapId;
 
     this.state = createInitialRoomState(this.mode);
     this.map = new MapGenerator(this.state);
-    this.bullets = new BulletManager(this.state, io, this.id, () => this.players, () => this.coop, (shooter, target) =>
-      this.broadcastSystemMessage(`${shooter} eliminated ${target}`),
+    this.bullets = new BulletManager(
+      this.state,
+      io,
+      this.id,
+      () => this.players,
+      () => this.coop,
+      (shooter, target) => this.broadcastSystemMessage(`${shooter} eliminated ${target}`),
     );
     this.players = new PlayerManager(this.state, io, this.id, this.bullets);
     this.ai = new BotAI(this.state, this.bullets);
@@ -170,15 +182,26 @@ export class GameRoom {
     const player = this.state.players[socketId];
     if (!player) return;
 
-    if (this.mode === 'pvp' && this.status === 'playing' && !player.isBot && player.userId && typeof player.rating === 'number') {
+    if (
+      this.mode === 'pvp' &&
+      this.status === 'playing' &&
+      !player.isBot &&
+      player.userId &&
+      typeof player.rating === 'number'
+    ) {
       const others = Object.values(this.state.players).filter(
         (p) => p !== player && !p.isBot && typeof p.rating === 'number',
       );
       const opponentAvgRating =
-        others.length > 0 ? others.reduce((sum, p) => sum + (p.rating as number), 0) / others.length : null;
-      const opponentAvgScore = others.length > 0 ? others.reduce((sum, p) => sum + p.score, 0) / others.length : 0;
+        others.length > 0
+          ? others.reduce((sum, p) => sum + (p.rating as number), 0) / others.length
+          : null;
+      const opponentAvgScore =
+        others.length > 0 ? others.reduce((sum, p) => sum + p.score, 0) / others.length : 0;
 
-      void settlePvpDeparture({
+      // Unguarded, this would be an unhandled promise rejection on any DB
+      // hiccup — which crashes the whole process, not just this request.
+      settlePvpDeparture({
         userId: player.userId,
         ratingBefore: player.rating,
         score: player.score,
@@ -186,7 +209,7 @@ export class GameRoom {
         opponentAvgRating,
         mapName: this.mapName,
         durationSec: this.getMatchDurationSec(),
-      });
+      }).catch((err) => console.error('Failed to settle PvP departure', err));
     }
 
     if (player.bullets) {
@@ -366,7 +389,12 @@ export class GameRoom {
         state.gameMode === 'coop'
           ? state.bricks
               .filter((brick) => brick.health > 0)
-              .map((brick) => ({ x: brick.x, y: brick.y, type: 'brick' as const, health: brick.health }))
+              .map((brick) => ({
+                x: brick.x,
+                y: brick.y,
+                type: 'brick' as const,
+                health: brick.health,
+              }))
           : [],
     };
   }
@@ -406,7 +434,11 @@ export class GameRoom {
   roster(): RoomPlayerInfo[] {
     return Object.entries(this.state.players)
       .filter(([, player]) => !player.isBot)
-      .map(([socketId, player]) => ({ socketId, name: player.name, isHost: socketId === this.hostSocketId }));
+      .map(([socketId, player]) => ({
+        socketId,
+        name: player.name,
+        isHost: socketId === this.hostSocketId,
+      }));
   }
 
   sendChat(socketId: string, text: string): void {
@@ -421,21 +453,44 @@ export class GameRoom {
     if (!trimmed) return;
 
     this.lastChatAt.set(socketId, now);
-    this.broadcastChat({ id: uuidv4(), authorName: player.name, text: trimmed, timestamp: now });
+    this.broadcastChat(
+      { id: uuidv4(), authorName: player.name, text: trimmed, timestamp: now },
+      player.userId,
+    );
   }
 
   broadcastSystemMessage(text: string): void {
-    this.broadcastChat({ id: uuidv4(), authorName: null, text, timestamp: Date.now(), system: true });
+    this.broadcastChat({
+      id: uuidv4(),
+      authorName: null,
+      text,
+      timestamp: Date.now(),
+      system: true,
+    });
   }
 
   getChatHistory(): ChatMessage[] {
     return this.chatHistory;
   }
 
-  private broadcastChat(message: ChatMessage): void {
+  private broadcastChat(message: ChatMessage, authorId?: string): void {
     this.chatHistory.push(message);
     if (this.chatHistory.length > CHAT_HISTORY_LIMIT) this.chatHistory.shift();
     this.io.to(this.id).emit('chat:message', message);
+
+    // Fire-and-forget: a DB hiccup must not take down live chat, and an
+    // unhandled rejection here would crash the whole process.
+    prisma.chatMessage
+      .create({
+        data: {
+          roomId: this.id,
+          authorId: authorId ?? null,
+          authorName: message.authorName,
+          text: message.text,
+          system: !!message.system,
+        },
+      })
+      .catch((err) => console.error('Failed to persist chat message', err));
   }
 
   destroy(): void {
@@ -460,7 +515,13 @@ export class GameRoom {
       if (!player?.bullets) continue;
       for (const bulletId in player.bullets) {
         const bullet = player.bullets[bulletId];
-        if (bullet && bullet.x >= 0 && bullet.x < size.col && bullet.y >= 0 && bullet.y < size.row) {
+        if (
+          bullet &&
+          bullet.x >= 0 &&
+          bullet.x < size.col &&
+          bullet.y >= 0 &&
+          bullet.y < size.row
+        ) {
           bulletCells.push({ x: bullet.x, y: bullet.y });
         }
       }

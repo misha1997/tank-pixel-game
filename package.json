@@ -2,6 +2,7 @@
   "name": "tank-pixel-game",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "workspaces": [
     "shared",
     "server",
@@ -13,13 +14,23 @@
     "build": "npm run build -w shared && npm run build -w server && npm run build -w client",
     "start": "node server/dist/index.js",
     "db:migrate:deploy": "npm run prisma:migrate:deploy -w server",
-    "deploy": "npm run build && npm run db:migrate:deploy && pm2 startOrReload ecosystem.config.cjs",
+    "db:seed": "npm run prisma:seed -w server",
+    "deploy": "npm run build && npm run db:migrate:deploy && npm run db:seed && pm2 startOrReload ecosystem.config.cjs",
     "pm2:logs": "pm2 logs tank-server",
     "pm2:monit": "pm2 monit",
-    "pm2:stop": "pm2 stop tank-server"
+    "pm2:stop": "pm2 stop tank-server",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "@eslint/js": "^9.18.0",
+    "concurrently": "^9.1.2",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.4.2",
+    "typescript-eslint": "^8.20.0"
   },
   "optionalDependencies": {
     "pm2": "^5.4.3"

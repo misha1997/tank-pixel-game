@@ -47,10 +47,14 @@ function buildColosseum(): MapDefinition {
   rect(walls, 38, 28, 62, 32);
 
   // Corner bunkers (L-shapes)
-  hline(walls, 12, 24, 12); vline(walls, 12, 12, 24);
-  hline(walls, 76, 88, 12); vline(walls, 88, 12, 24);
-  hline(walls, 12, 24, 48); vline(walls, 12, 36, 48);
-  hline(walls, 76, 88, 48); vline(walls, 88, 36, 48);
+  hline(walls, 12, 24, 12);
+  vline(walls, 12, 12, 24);
+  hline(walls, 76, 88, 12);
+  vline(walls, 88, 12, 24);
+  hline(walls, 12, 24, 48);
+  vline(walls, 12, 36, 48);
+  hline(walls, 76, 88, 48);
+  vline(walls, 88, 36, 48);
 
   // Edge pocket pillars
   rect(walls, 30, 6, 34, 8);
@@ -66,18 +70,18 @@ function buildColosseum(): MapDefinition {
 function buildTetrominoYard(): MapDefinition {
   const walls: MapCell[] = [];
 
-  rect(walls, 14, 14, 24, 15);            // I (horizontal)
-  rect(walls, 76, 44, 77, 54);            // I (vertical)
-  rect(walls, 30, 10, 35, 15);            // O
-  rect(walls, 62, 12, 67, 13);            // S
+  rect(walls, 14, 14, 24, 15); // I (horizontal)
+  rect(walls, 76, 44, 77, 54); // I (vertical)
+  rect(walls, 30, 10, 35, 15); // O
+  rect(walls, 62, 12, 67, 13); // S
   rect(walls, 67, 14, 72, 15);
-  rect(walls, 12, 30, 17, 31);            // L
+  rect(walls, 12, 30, 17, 31); // L
   rect(walls, 12, 32, 13, 37);
-  rect(walls, 83, 22, 88, 23);            // J
+  rect(walls, 83, 22, 88, 23); // J
   rect(walls, 87, 24, 88, 29);
-  rect(walls, 24, 44, 29, 45);            // Z
+  rect(walls, 24, 44, 29, 45); // Z
   rect(walls, 19, 46, 24, 47);
-  rect(walls, 78, 30, 83, 31);            // S (mirrored)
+  rect(walls, 78, 30, 83, 31); // S (mirrored)
 
   // T pieces (stem + bar)
   rect(walls, 44, 8, 58, 9);
@@ -85,8 +89,8 @@ function buildTetrominoYard(): MapDefinition {
   rect(walls, 42, 48, 56, 49);
   rect(walls, 48, 42, 50, 47);
 
-  rect(walls, 64, 36, 74, 37);            // I (horizontal)
-  rect(walls, 38, 28, 43, 33);            // O
+  rect(walls, 64, 36, 74, 37); // I (horizontal)
+  rect(walls, 38, 28, 43, 33); // O
 
   return { walls, bricks: [] };
 }
@@ -96,11 +100,16 @@ function buildTetrominoYard(): MapDefinition {
 function buildSerpentCorridors(): MapDefinition {
   const walls: MapCell[] = [];
 
-  hline(walls, 12, 43, 14); hline(walls, 57, 88, 14);   // gap mid
-  hline(walls, 10, 13, 22); hline(walls, 27, 88, 22);   // gap left
-  hline(walls, 10, 71, 30); hline(walls, 85, 88, 30);   // gap right
-  hline(walls, 10, 29, 38); hline(walls, 43, 88, 38);   // gap mid-left
-  hline(walls, 10, 57, 46); hline(walls, 71, 88, 46);   // gap mid-right
+  hline(walls, 12, 43, 14);
+  hline(walls, 57, 88, 14); // gap mid
+  hline(walls, 10, 13, 22);
+  hline(walls, 27, 88, 22); // gap left
+  hline(walls, 10, 71, 30);
+  hline(walls, 85, 88, 30); // gap right
+  hline(walls, 10, 29, 38);
+  hline(walls, 43, 88, 38); // gap mid-left
+  hline(walls, 10, 57, 46);
+  hline(walls, 71, 88, 46); // gap mid-right
 
   // Gap-cover stubs
   rect(walls, 48, 8, 52, 13);
@@ -118,17 +127,21 @@ function buildTwinFortresses(): MapDefinition {
   const walls: MapCell[] = [];
 
   // Left fortress (doors: top x16..20, right wall y27..35)
-  hline(walls, 10, 15, 18); hline(walls, 21, 28, 18);
+  hline(walls, 10, 15, 18);
+  hline(walls, 21, 28, 18);
   hline(walls, 10, 28, 44);
   vline(walls, 10, 19, 43);
-  vline(walls, 28, 19, 26); vline(walls, 28, 36, 43);
+  vline(walls, 28, 19, 26);
+  vline(walls, 28, 36, 43);
   rect(walls, 17, 29, 21, 33);
 
   // Right fortress (mirror)
-  hline(walls, 72, 79, 18); hline(walls, 85, 90, 18);
+  hline(walls, 72, 79, 18);
+  hline(walls, 85, 90, 18);
   hline(walls, 72, 90, 44);
   vline(walls, 90, 19, 43);
-  vline(walls, 72, 19, 26); vline(walls, 72, 36, 43);
+  vline(walls, 72, 19, 26);
+  vline(walls, 72, 36, 43);
   rect(walls, 79, 29, 83, 33);
 
   // Middle pillars
@@ -165,7 +178,8 @@ function buildBrokenRings(): MapDefinition {
   const walls: MapCell[] = [];
 
   // Outer ring, gap top-middle
-  hline(walls, 14, 45, 8); hline(walls, 55, 86, 8);
+  hline(walls, 14, 45, 8);
+  hline(walls, 55, 86, 8);
   hline(walls, 14, 86, 52);
   vline(walls, 14, 9, 51);
   vline(walls, 86, 9, 51);
@@ -174,13 +188,15 @@ function buildBrokenRings(): MapDefinition {
   hline(walls, 24, 76, 17);
   hline(walls, 24, 76, 43);
   vline(walls, 24, 18, 42);
-  vline(walls, 76, 18, 25); vline(walls, 76, 35, 42);
+  vline(walls, 76, 18, 25);
+  vline(walls, 76, 35, 42);
 
   // Inner ring, gap bottom-middle
   hline(walls, 34, 66, 26);
   vline(walls, 34, 27, 33);
   vline(walls, 66, 27, 33);
-  hline(walls, 34, 45, 34); hline(walls, 55, 66, 34);
+  hline(walls, 34, 45, 34);
+  hline(walls, 55, 66, 34);
 
   return { walls, bricks: [] };
 }
@@ -208,7 +224,10 @@ function buildDiagonalSlash(): MapDefinition {
   const walls: MapCell[] = [];
   const gapsByBand: [number, number][][] = [
     [[40, 48]],
-    [[24, 32], [64, 72]],
+    [
+      [24, 32],
+      [64, 72],
+    ],
     [[48, 56]],
   ];
 
@@ -231,8 +250,10 @@ function buildWarRooms(): MapDefinition {
   const walls: MapCell[] = [];
 
   // Vertical dividers with center doorways
-  vline(walls, 33, 10, 25); vline(walls, 33, 35, 50);
-  vline(walls, 66, 10, 25); vline(walls, 66, 35, 50);
+  vline(walls, 33, 10, 25);
+  vline(walls, 33, 35, 50);
+  vline(walls, 66, 10, 25);
+  vline(walls, 66, 35, 50);
 
   // Horizontal divider, doors at x24..33, x46..54, x66
   hline(walls, 12, 23, 30);
@@ -300,11 +321,16 @@ function buildCoopHedgeMaze(): MapDefinition {
   const base = { x: 12, y: 52 };
 
   // Hedges (alternating gap layouts; middle sections are bricks, see below)
-  vline(walls, 24, 8, 13); vline(walls, 24, 47, 52);
-  vline(walls, 40, 8, 25); vline(walls, 40, 35, 52);
-  vline(walls, 56, 8, 13); vline(walls, 56, 47, 52);
-  vline(walls, 72, 8, 25); vline(walls, 72, 35, 52);
-  vline(walls, 88, 8, 13); vline(walls, 88, 47, 52);
+  vline(walls, 24, 8, 13);
+  vline(walls, 24, 47, 52);
+  vline(walls, 40, 8, 25);
+  vline(walls, 40, 35, 52);
+  vline(walls, 56, 8, 13);
+  vline(walls, 56, 47, 52);
+  vline(walls, 72, 8, 25);
+  vline(walls, 72, 35, 52);
+  vline(walls, 88, 8, 13);
+  vline(walls, 88, 47, 52);
 
   // Destructible hedge sections + mid-line lattice
   vline(bricks, 24, 23, 37);
@@ -337,11 +363,14 @@ function buildCoopFortressSiege(): MapDefinition {
   const base = { x: 48, y: 46 };
 
   // Fort ring: open north gate, breachable brick gates on both flanks
-  hline(walls, 36, 44, 34); hline(walls, 54, 62, 34);
+  hline(walls, 36, 44, 34);
+  hline(walls, 54, 62, 34);
   hline(walls, 36, 62, 54);
-  vline(walls, 36, 35, 41); vline(walls, 36, 47, 53);
+  vline(walls, 36, 35, 41);
+  vline(walls, 36, 47, 53);
   vline(bricks, 36, 42, 46);
-  vline(walls, 62, 35, 41); vline(walls, 62, 47, 53);
+  vline(walls, 62, 35, 41);
+  vline(walls, 62, 47, 53);
   vline(bricks, 62, 42, 46);
 
   // Outer rocks
@@ -380,10 +409,14 @@ function buildCoopTwinBridges(): MapDefinition {
   }
 
   // Bridge bank cover (flanking each bridgehead)
-  hline(bricks, 16, 20, 23); hline(bricks, 30, 34, 23);
-  hline(bricks, 66, 70, 23); hline(bricks, 80, 84, 23);
-  hline(bricks, 16, 20, 31); hline(bricks, 30, 34, 31);
-  hline(bricks, 66, 70, 31); hline(bricks, 80, 84, 31);
+  hline(bricks, 16, 20, 23);
+  hline(bricks, 30, 34, 23);
+  hline(bricks, 66, 70, 23);
+  hline(bricks, 80, 84, 23);
+  hline(bricks, 16, 20, 31);
+  hline(bricks, 30, 34, 31);
+  hline(bricks, 66, 70, 31);
+  hline(bricks, 80, 84, 31);
 
   // North-field rocks
   rect(walls, 12, 12, 16, 15);
@@ -413,7 +446,8 @@ function buildCoopSwirl(): MapDefinition {
   const base = { x: 48, y: 30 };
 
   // Outer ring, gap top-middle
-  hline(walls, 14, 44, 10); hline(walls, 54, 84, 10);
+  hline(walls, 14, 44, 10);
+  hline(walls, 54, 84, 10);
   hline(walls, 14, 84, 50);
   vline(walls, 14, 11, 49);
   vline(walls, 84, 11, 49);
@@ -421,8 +455,10 @@ function buildCoopSwirl(): MapDefinition {
   // Inner ring, gaps on east and west
   hline(walls, 26, 72, 18);
   hline(walls, 26, 72, 42);
-  vline(walls, 26, 19, 26); vline(walls, 26, 34, 41);
-  vline(walls, 72, 19, 26); vline(walls, 72, 34, 41);
+  vline(walls, 26, 19, 26);
+  vline(walls, 26, 34, 41);
+  vline(walls, 72, 19, 26);
+  vline(walls, 72, 34, 41);
 
   // Core brick cross-guard
   hline(bricks, 44, 54, 25);
@@ -457,21 +493,25 @@ function buildCoopOutposts(): MapDefinition {
 
   // North-west outpost (door bottom-middle)
   hline(walls, 20, 32, 10);
-  hline(walls, 20, 23, 18); hline(walls, 29, 32, 18);
+  hline(walls, 20, 23, 18);
+  hline(walls, 29, 32, 18);
   vline(walls, 20, 11, 17);
   vline(walls, 32, 11, 17);
   rect(bricks, 24, 13, 27, 14);
 
   // North-east outpost (mirror)
   hline(walls, 68, 80, 10);
-  hline(walls, 68, 71, 18); hline(walls, 77, 80, 18);
+  hline(walls, 68, 71, 18);
+  hline(walls, 77, 80, 18);
   vline(walls, 68, 11, 17);
   vline(walls, 80, 11, 17);
   rect(bricks, 72, 13, 75, 14);
 
   // Side ruins
-  rect(walls, 10, 28, 14, 31); vline(walls, 10, 32, 36);
-  rect(walls, 86, 28, 90, 31); vline(walls, 90, 32, 36);
+  rect(walls, 10, 28, 14, 31);
+  vline(walls, 10, 32, 36);
+  rect(walls, 86, 28, 90, 31);
+  vline(walls, 90, 32, 36);
 
   // Mid-field pillars
   rect(walls, 30, 32, 34, 35);
@@ -640,22 +680,82 @@ export interface BuiltinMap {
 
 export const BUILTIN_MAPS: BuiltinMap[] = [
   { id: 'builtin-pvp-colosseum', name: 'Colosseum', mode: 'pvp', definition: buildColosseum() },
-  { id: 'builtin-pvp-tetromino-yard', name: 'Tetromino Yard', mode: 'pvp', definition: buildTetrominoYard() },
-  { id: 'builtin-pvp-serpent-corridors', name: 'Serpent Corridors', mode: 'pvp', definition: buildSerpentCorridors() },
-  { id: 'builtin-pvp-twin-fortresses', name: 'Twin Fortresses', mode: 'pvp', definition: buildTwinFortresses() },
-  { id: 'builtin-pvp-archipelago', name: 'Archipelago', mode: 'pvp', definition: buildArchipelago() },
-  { id: 'builtin-pvp-broken-rings', name: 'Broken Rings', mode: 'pvp', definition: buildBrokenRings() },
-  { id: 'builtin-pvp-pillar-fields', name: 'Pillar Fields', mode: 'pvp', definition: buildPillarFields() },
-  { id: 'builtin-pvp-diagonal-slash', name: 'Diagonal Slash', mode: 'pvp', definition: buildDiagonalSlash() },
+  {
+    id: 'builtin-pvp-tetromino-yard',
+    name: 'Tetromino Yard',
+    mode: 'pvp',
+    definition: buildTetrominoYard(),
+  },
+  {
+    id: 'builtin-pvp-serpent-corridors',
+    name: 'Serpent Corridors',
+    mode: 'pvp',
+    definition: buildSerpentCorridors(),
+  },
+  {
+    id: 'builtin-pvp-twin-fortresses',
+    name: 'Twin Fortresses',
+    mode: 'pvp',
+    definition: buildTwinFortresses(),
+  },
+  {
+    id: 'builtin-pvp-archipelago',
+    name: 'Archipelago',
+    mode: 'pvp',
+    definition: buildArchipelago(),
+  },
+  {
+    id: 'builtin-pvp-broken-rings',
+    name: 'Broken Rings',
+    mode: 'pvp',
+    definition: buildBrokenRings(),
+  },
+  {
+    id: 'builtin-pvp-pillar-fields',
+    name: 'Pillar Fields',
+    mode: 'pvp',
+    definition: buildPillarFields(),
+  },
+  {
+    id: 'builtin-pvp-diagonal-slash',
+    name: 'Diagonal Slash',
+    mode: 'pvp',
+    definition: buildDiagonalSlash(),
+  },
   { id: 'builtin-pvp-war-rooms', name: 'War Rooms', mode: 'pvp', definition: buildWarRooms() },
 
-  { id: 'builtin-coop-crossfire', name: 'Crossfire Junction', mode: 'coop', definition: buildCoopCrossfire() },
-  { id: 'builtin-coop-hedge-maze', name: 'Hedge Maze', mode: 'coop', definition: buildCoopHedgeMaze() },
-  { id: 'builtin-coop-fortress-siege', name: 'Fortress Siege', mode: 'coop', definition: buildCoopFortressSiege() },
-  { id: 'builtin-coop-twin-bridges', name: 'Twin Bridges', mode: 'coop', definition: buildCoopTwinBridges() },
+  {
+    id: 'builtin-coop-crossfire',
+    name: 'Crossfire Junction',
+    mode: 'coop',
+    definition: buildCoopCrossfire(),
+  },
+  {
+    id: 'builtin-coop-hedge-maze',
+    name: 'Hedge Maze',
+    mode: 'coop',
+    definition: buildCoopHedgeMaze(),
+  },
+  {
+    id: 'builtin-coop-fortress-siege',
+    name: 'Fortress Siege',
+    mode: 'coop',
+    definition: buildCoopFortressSiege(),
+  },
+  {
+    id: 'builtin-coop-twin-bridges',
+    name: 'Twin Bridges',
+    mode: 'coop',
+    definition: buildCoopTwinBridges(),
+  },
   { id: 'builtin-coop-swirl', name: 'The Swirl', mode: 'coop', definition: buildCoopSwirl() },
   { id: 'builtin-coop-outposts', name: 'Outposts', mode: 'coop', definition: buildCoopOutposts() },
-  { id: 'builtin-coop-gauntlet', name: 'The Gauntlet', mode: 'coop', definition: buildCoopGauntlet() },
+  {
+    id: 'builtin-coop-gauntlet',
+    name: 'The Gauntlet',
+    mode: 'coop',
+    definition: buildCoopGauntlet(),
+  },
   { id: 'builtin-coop-quarry', name: 'Quarry', mode: 'coop', definition: buildCoopQuarry() },
   { id: 'builtin-coop-redoubt', name: 'Redoubt', mode: 'coop', definition: buildCoopRedoubt() },
 ];

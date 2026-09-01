@@ -16,7 +16,10 @@ function isValidMapDefinition(data: unknown): data is MapDefinition {
   if (!Array.isArray(def.walls) || !Array.isArray(def.bricks)) return false;
   if (def.walls.length + def.bricks.length > MAX_CELLS) return false;
   const isCell = (c: unknown): boolean =>
-    !!c && typeof c === 'object' && typeof (c as { x: unknown }).x === 'number' && typeof (c as { y: unknown }).y === 'number';
+    !!c &&
+    typeof c === 'object' &&
+    typeof (c as { x: unknown }).x === 'number' &&
+    typeof (c as { y: unknown }).y === 'number';
   return def.walls.every(isCell) && def.bricks.every(isCell);
 }
 
@@ -26,18 +29,40 @@ mapsRouter.get('/', async (req, res) => {
   const mode = isValidMode(req.query.mode) ? req.query.mode : undefined;
   const userId = getSessionUserId(req);
 
-  const builtin: MapSummary[] = BUILTIN_MAPS.filter((m) => !mode || m.mode === mode).map((m) => ({
-    id: m.id,
-    name: m.name,
-    mode: m.mode,
-    visibility: 'public',
-    isBuiltin: true,
-    ownerName: null,
-    data: m.definition,
-  }));
+  // Builtins live in the Map table (isBuiltin: true, seeded via `prisma db
+  // seed`) alongside custom maps now. Fall back to the bundled static list
+  // if the DB is unreachable or hasn't been seeded yet, so the map grid
+  // isn't just empty.
+  let builtin: MapSummary[];
+  try {
+    const builtinRows = await prisma.map.findMany({
+      where: { isBuiltin: true, ...(mode ? { mode } : {}) },
+      orderBy: { createdAt: 'asc' },
+    });
+    builtin = builtinRows.map((m) => ({
+      id: m.id,
+      name: m.name,
+      mode: m.mode as GameMode,
+      visibility: 'public',
+      isBuiltin: true,
+      ownerName: null,
+      data: m.data as unknown as MapDefinition,
+    }));
+  } catch (err) {
+    console.error('GET /api/maps: builtin lookup failed, using bundled map data', err);
+    builtin = BUILTIN_MAPS.filter((m) => !mode || m.mode === mode).map((m) => ({
+      id: m.id,
+      name: m.name,
+      mode: m.mode,
+      visibility: 'public',
+      isBuiltin: true,
+      ownerName: null,
+      data: m.definition,
+    }));
+  }
 
   const publicMaps = await prisma.map.findMany({
-    where: { visibility: 'public', ...(mode ? { mode } : {}) },
+    where: { visibility: 'public', isBuiltin: false, ...(mode ? { mode } : {}) },
     include: { owner: { select: { username: true } } },
     orderBy: { createdAt: 'desc' },
     take: 100,
@@ -56,7 +81,7 @@ mapsRouter.get('/', async (req, res) => {
     mode: string;
     visibility: string;
     data: unknown;
-    owner?: { username: string };
+    owner?: { username: string } | null;
   }): MapSummary => ({
     id: m.id,
     name: m.name,

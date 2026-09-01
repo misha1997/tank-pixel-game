@@ -1,0 +1,57 @@
+<!-- Модалка результату бою (перемога / поразка / завершення хвилі) -->
+<div id="match-modal" class="hidden modal-backdrop">
+  <div class="match-modal-box">
+    <p class="match-modal-kicker" id="match-modal-kicker"></p>
+    <h2 class="match-modal-title" id="match-modal-title"></h2>
+    <p class="match-modal-body" id="match-modal-body"></p>
+    <button type="button" class="btn-start" id="match-modal-btn">CONTINUE</button>
+  </div>
+</div>
+
+<!-- Модалка налаштувань кімнати — доступна лише хосту, застосовується з наступним матчем -->
+<div id="settings-modal" class="hidden modal-backdrop pixel-ui">
+  <div class="match-modal-box settings-modal-box">
+    <span class="deco tl"></span><span class="deco tr"></span> <span class="deco bl"></span
+    ><span class="deco br"></span>
+    <div class="tab"><h2 class="o">MATCH SETTINGS</h2></div>
+    <p id="settings-modal-note" class="o settings-note"></p>
+
+    <div class="well pixel-scroll">
+      <h3 class="o">MAP</h3>
+      <div class="grid" id="settings-modal-maps" role="group" aria-label="Map selection"></div>
+
+      <h3 class="o" id="settings-modal-difficulty-label">BOT DIFFICULTY</h3>
+      <div class="seg" id="settings-modal-difficulty" role="group" aria-label="Bot difficulty">
+        <button class="btn o" type="button" data-value="easy" aria-pressed="false">EASY</button>
+        <button class="btn o" type="button" data-value="normal" aria-pressed="true">NORMAL</button>
+        <button class="btn o" type="button" data-value="hard" aria-pressed="false">HARD</button>
+        <button class="btn o" type="button" data-value="adaptive" aria-pressed="false">
+          ADAPTIVE
+        </button>
+      </div>
+
+      <h3 class="o" id="settings-modal-fill-label">BOT FILL TARGET</h3>
+      <div class="stepper" id="settings-modal-fill-row">
+        <button class="btn o" type="button" id="settings-modal-fill-minus" aria-label="Less">
+          &minus;
+        </button>
+        <input
+          class="count"
+          id="settings-modal-fill"
+          type="number"
+          min="0"
+          max="8"
+          step="1"
+          aria-label="Bot fill target"
+        />
+        <button class="btn o" type="button" id="settings-modal-fill-plus" aria-label="More">
+          +
+        </button>
+      </div>
+
+      <p id="settings-modal-error" class="err o" role="alert"></p>
+      <button class="btn create o" type="button" id="settings-modal-save">START NEXT MATCH</button>
+      <button class="guest o" type="button" id="settings-modal-close">Close</button>
+    </div>
+  </div>
+</div>

@@ -31,7 +31,13 @@ function wireOnce(): void {
   });
 }
 
-export function showMatchModal({ variant, kicker, title, body, autoCloseMs }: ShowMatchModalOptions): void {
+export function showMatchModal({
+  variant,
+  kicker,
+  title,
+  body,
+  autoCloseMs,
+}: ShowMatchModalOptions): void {
   const modal = document.getElementById('match-modal');
   const kickerEl = document.getElementById('match-modal-kicker');
   const titleEl = document.getElementById('match-modal-title');

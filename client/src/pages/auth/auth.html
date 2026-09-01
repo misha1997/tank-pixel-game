@@ -1,0 +1,63 @@
+<div id="auth-overlay" class="hidden">
+  <div class="screen">
+    <div class="field pixel-ui">
+      <div class="panel">
+        <span class="deco tl"></span><span class="deco tr"></span> <span class="deco bl"></span
+        ><span class="deco br"></span>
+
+        <div class="tab"><h1 class="o">TANK BATTLE</h1></div>
+
+        <div class="tabs" role="tablist">
+          <button
+            type="button"
+            class="ftab o auth-tab-btn selected"
+            data-tab="login"
+            role="tab"
+            aria-selected="true"
+          >
+            LOG IN
+          </button>
+          <button
+            type="button"
+            class="ftab o auth-tab-btn"
+            data-tab="register"
+            role="tab"
+            aria-selected="false"
+          >
+            REGISTER
+          </button>
+        </div>
+
+        <div class="well">
+          <form id="auth-form">
+            <label class="lbl o" for="auth-username">Username:</label>
+            <input
+              class="field-input"
+              type="text"
+              id="auth-username"
+              maxlength="12"
+              placeholder="CALLSIGN"
+              autocomplete="username"
+            />
+
+            <label class="lbl o" for="auth-password">Password:</label>
+            <input
+              class="field-input"
+              type="password"
+              id="auth-password"
+              placeholder="••••••••"
+              autocomplete="current-password"
+            />
+
+            <div id="auth-error" class="err o" role="alert"></div>
+
+            <div class="btn-row">
+              <button type="submit" class="btn o" id="auth-submit">LOG IN</button>
+              <button type="button" class="btn o" id="btn-guest">Play as Guest</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

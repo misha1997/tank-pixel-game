@@ -1,6 +1,17 @@
 import type { Server } from 'socket.io';
-import { BULLET_POOL_SIZE, BULLET_SPEED, bulletDirections, positionPiece, size } from '@tank/shared';
-import type { BulletState, ClientToServerEvents, ServerToClientEvents, TankFacing } from '@tank/shared';
+import {
+  BULLET_POOL_SIZE,
+  BULLET_SPEED,
+  bulletDirections,
+  positionPiece,
+  size,
+} from '@tank/shared';
+import type {
+  BulletState,
+  ClientToServerEvents,
+  ServerToClientEvents,
+  TankFacing,
+} from '@tank/shared';
 import type { RoomState } from './state.js';
 import { cellKey } from './state.js';
 import type { PlayerManager } from './PlayerManager.js';
@@ -158,8 +169,10 @@ export class BulletManager {
       }
 
       if (
-        state.base.x <= bullet.x && bullet.x < state.base.x + 3 &&
-        state.base.y <= bullet.y && bullet.y < state.base.y + 3
+        state.base.x <= bullet.x &&
+        bullet.x < state.base.x + 3 &&
+        state.base.y <= bullet.y &&
+        bullet.y < state.base.y + 3
       ) {
         state.base.health--;
         this.io.to(this.roomId).emit('base hit', { health: state.base.health });

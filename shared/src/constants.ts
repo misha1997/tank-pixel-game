@@ -20,12 +20,36 @@ export const size = {
 };
 
 export const positionPiece: Record<TankAnimState, number[][]> = {
-  top: [[0, 1, 0], [1, 1, 1], [1, 0, 1]],
-  bottom: [[1, 0, 1], [1, 1, 1], [0, 1, 0]],
-  left: [[1, 1, 0], [0, 1, 1], [1, 1, 0]],
-  right: [[0, 1, 1], [1, 1, 0], [0, 1, 1]],
-  boomOne: [[1, 0, 1], [0, 1, 0], [1, 0, 1]],
-  boomTwo: [[0, 1, 0], [1, 0, 1], [0, 1, 0]],
+  top: [
+    [0, 1, 0],
+    [1, 1, 1],
+    [1, 0, 1],
+  ],
+  bottom: [
+    [1, 0, 1],
+    [1, 1, 1],
+    [0, 1, 0],
+  ],
+  left: [
+    [1, 1, 0],
+    [0, 1, 1],
+    [1, 1, 0],
+  ],
+  right: [
+    [0, 1, 1],
+    [1, 1, 0],
+    [0, 1, 1],
+  ],
+  boomOne: [
+    [1, 0, 1],
+    [0, 1, 0],
+    [1, 0, 1],
+  ],
+  boomTwo: [
+    [0, 1, 0],
+    [1, 0, 1],
+    [0, 1, 0],
+  ],
 };
 
 export interface BulletDirectionConfig {
@@ -44,12 +68,13 @@ export interface BulletDirectionConfig {
 // A bullet spawned on top of the tank's own muzzle cell would be streamed
 // as a bullet cell that tick, painting over the tank's color for a frame
 // (bullet cells always win; see GameStateSnapshot in shared/src/types.ts).
-export const bulletDirections: Record<'top' | 'bottom' | 'left' | 'right', BulletDirectionConfig> = {
-  top: { dir: 'up', dx: 0, dy: -1, offsetX: 1, offsetY: -1 },
-  bottom: { dir: 'down', dx: 0, dy: 1, offsetX: 1, offsetY: 3 },
-  left: { dir: 'right', dx: 1, dy: 0, offsetX: 3, offsetY: 1 },
-  right: { dir: 'left', dx: -1, dy: 0, offsetX: -1, offsetY: 1 },
-};
+export const bulletDirections: Record<'top' | 'bottom' | 'left' | 'right', BulletDirectionConfig> =
+  {
+    top: { dir: 'up', dx: 0, dy: -1, offsetX: 1, offsetY: -1 },
+    bottom: { dir: 'down', dx: 0, dy: 1, offsetX: 1, offsetY: 3 },
+    left: { dir: 'right', dx: 1, dy: 0, offsetX: 3, offsetY: 1 },
+    right: { dir: 'left', dx: -1, dy: 0, offsetX: -1, offsetY: 1 },
+  };
 
 export const MAX_COOP_BOTS = 4;
 export const BASE_HEALTH = 1;

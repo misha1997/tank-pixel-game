@@ -1,6 +1,11 @@
 import type { Server } from 'socket.io';
 import { COLLISION_CHECK_DISTANCE, INVULNERABILITY_TIME, positionPiece, size } from '@tank/shared';
-import type { ClientToServerEvents, PlayerState, ServerToClientEvents, TankFacing } from '@tank/shared';
+import type {
+  ClientToServerEvents,
+  PlayerState,
+  ServerToClientEvents,
+  TankFacing,
+} from '@tank/shared';
 import type { RoomState } from './state.js';
 import { randomInteger } from '../utils/random.js';
 import type { BulletManager } from './BulletManager.js';
@@ -99,7 +104,12 @@ export class PlayerManager {
     }
   }
 
-  checkPlayerCollision(player: PlayerState, newX: number, newY: number, newPosition: TankFacing): string | null {
+  checkPlayerCollision(
+    player: PlayerState,
+    newX: number,
+    newY: number,
+    newPosition: TankFacing,
+  ): string | null {
     const { state } = this;
     const playerPiece = positionPiece[newPosition];
     if (!playerPiece) return null;
@@ -117,7 +127,8 @@ export class PlayerManager {
       if (otherPlayer.exploding && now < otherPlayer.explosionEndTime) continue;
 
       const playerInvulnerable = player.invulnerableUntil && now < player.invulnerableUntil;
-      const otherInvulnerable = otherPlayer.invulnerableUntil && now < otherPlayer.invulnerableUntil;
+      const otherInvulnerable =
+        otherPlayer.invulnerableUntil && now < otherPlayer.invulnerableUntil;
 
       if (playerInvulnerable || otherInvulnerable) continue;
 
@@ -131,7 +142,12 @@ export class PlayerManager {
     return null;
   }
 
-  checkDetailedCollision(playerPiece: number[][], newX: number, newY: number, otherPlayer: PlayerState): boolean {
+  checkDetailedCollision(
+    playerPiece: number[][],
+    newX: number,
+    newY: number,
+    otherPlayer: PlayerState,
+  ): boolean {
     const otherPiece = positionPiece[otherPlayer.position];
     if (!otherPiece) return false;
 

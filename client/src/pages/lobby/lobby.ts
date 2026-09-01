@@ -1,7 +1,9 @@
 import type { AuthUser, RoomSummary } from '@tank/shared';
-import { socket } from './socket.js';
-import { navigate } from './router.js';
-import { logout } from './auth.js';
+import { socket } from '../../core/socket.js';
+import { navigate } from '../../core/router.js';
+import { mountPartial } from '../../core/page.js';
+import { logout } from '../auth/auth.js';
+import html from './lobby.html?raw';
 
 let wired = false;
 let currentAccount: AuthUser | null = null;
@@ -89,6 +91,7 @@ export function showLobby(account: AuthUser | null): void {
   currentAccount = account;
 
   if (!wired) {
+    mountPartial(html);
     wireOnce();
     wired = true;
   }

@@ -167,8 +167,10 @@ export class BotAI {
       const newX = bot.x + move.dx;
       const newY = bot.y + move.dy;
       if (
-        newX >= 0 && newX < size.col - 3 &&
-        newY >= 0 && newY < size.row - 3 &&
+        newX >= 0 &&
+        newX < size.col - 3 &&
+        newY >= 0 &&
+        newY < size.row - 3 &&
         !this.bullets.checkWallCollision(newX, newY, move.pos) &&
         !(avoid && avoid(newX, newY))
       ) {
@@ -209,8 +211,10 @@ export class BotAI {
       const newX = bot.x + move.dx;
       const newY = bot.y + move.dy;
       if (
-        newX >= 0 && newX < size.col - 3 &&
-        newY >= 0 && newY < size.row - 3 &&
+        newX >= 0 &&
+        newX < size.col - 3 &&
+        newY >= 0 &&
+        newY < size.row - 3 &&
         !this.bullets.checkWallCollision(newX, newY, move.pos) &&
         !this.wouldBeHit({ x: newX, y: newY }, threat) &&
         !(avoid && avoid(newX, newY))
@@ -251,7 +255,12 @@ export class BotAI {
     }
 
     return bestTarget && bestTargetId && bestPosition
-      ? { player: bestTarget, playerId: bestTargetId, distance: minDistance, position: bestPosition }
+      ? {
+          player: bestTarget,
+          playerId: bestTargetId,
+          distance: minDistance,
+          position: bestPosition,
+        }
       : null;
   }
 
@@ -261,7 +270,10 @@ export class BotAI {
 
   // from doesn't have to be an actual player — findFiringPosition probes
   // hypothetical spots with this same check.
-  canShootTargetFrom(from: { x: number; y: number }, target: { x: number; y: number }): TankFacing | null {
+  canShootTargetFrom(
+    from: { x: number; y: number },
+    target: { x: number; y: number },
+  ): TankFacing | null {
     const directions: TankFacing[] = ['top', 'bottom', 'left', 'right'];
     for (const dir of directions) {
       const bulletConfig = bulletDirections[dir];
@@ -275,8 +287,10 @@ export class BotAI {
         checkY += bulletConfig.dy;
 
         if (
-          target.x <= checkX && checkX < target.x + 3 &&
-          target.y <= checkY && checkY < target.y + 3
+          target.x <= checkX &&
+          checkX < target.x + 3 &&
+          target.y <= checkY &&
+          checkY < target.y + 3
         ) {
           return dir;
         }
@@ -320,8 +334,10 @@ export class BotAI {
       const newX = bot.x + move.dx;
       const newY = bot.y + move.dy;
       if (
-        newX >= 0 && newX < size.col - 3 &&
-        newY >= 0 && newY < size.row - 3 &&
+        newX >= 0 &&
+        newX < size.col - 3 &&
+        newY >= 0 &&
+        newY < size.row - 3 &&
         !this.bullets.checkWallCollision(newX, newY, move.pos)
       ) {
         return move;
@@ -364,7 +380,11 @@ export class BotAI {
   // current target, if any) gets a small bonus so the bot commits to chasing
   // someone instead of flip-flopping targets every tick a marginally closer
   // player wanders by.
-  findBestPvpTarget(bot: PlayerState, botId: string, preferredTargetId?: string): { id: string; player: PlayerState } | null {
+  findBestPvpTarget(
+    bot: PlayerState,
+    botId: string,
+    preferredTargetId?: string,
+  ): { id: string; player: PlayerState } | null {
     const { state } = this;
     const now = Date.now();
     let best: PlayerState | null = null;
@@ -421,7 +441,12 @@ export class BotAI {
   // BFS over the walkable grid — same per-direction wall mask real movement
   // uses, so a returned path is guaranteed walkable step by step. Lets bots
   // route around obstacles instead of nudging into them and giving up.
-  findPath(startX: number, startY: number, goalX: number, goalY: number): { x: number; y: number }[] | null {
+  findPath(
+    startX: number,
+    startY: number,
+    goalX: number,
+    goalY: number,
+  ): { x: number; y: number }[] | null {
     const maxX = size.col - 3;
     const maxY = size.row - 3;
     if (goalX < 0 || goalX > maxX || goalY < 0 || goalY > maxY) return null;
@@ -490,9 +515,10 @@ export class BotAI {
     const goal = this.findFiringPosition(bot, target) ?? { x: target.x, y: target.y };
     const now = Date.now();
 
-    const goalDrift = memory.pathGoalX === undefined
-      ? Infinity
-      : Math.abs(memory.pathGoalX - goal.x) + Math.abs((memory.pathGoalY ?? goal.y) - goal.y);
+    const goalDrift =
+      memory.pathGoalX === undefined
+        ? Infinity
+        : Math.abs(memory.pathGoalX - goal.x) + Math.abs((memory.pathGoalY ?? goal.y) - goal.y);
     const stale = now - (memory.pathComputedAt ?? 0) > 1500;
     const exhausted = !memory.path || memory.path.length === 0;
 
@@ -539,8 +565,10 @@ export class BotAI {
       const newX = bot.x + move.dx;
       const newY = bot.y + move.dy;
       if (
-        newX >= 0 && newX < size.col - 3 &&
-        newY >= 0 && newY < size.row - 3 &&
+        newX >= 0 &&
+        newX < size.col - 3 &&
+        newY >= 0 &&
+        newY < size.row - 3 &&
         !this.bullets.checkWallCollision(newX, newY, move.pos) &&
         !(avoid && avoid(newX, newY))
       ) {
@@ -571,7 +599,12 @@ export class BotAI {
     const baseCenterX = state.base.x + 1;
     const baseCenterY = state.base.y + 1;
 
-    const attackPositions: { x: number; y: number; pos: 'left' | 'right' | 'top'; dir: TankFacing }[] = [
+    const attackPositions: {
+      x: number;
+      y: number;
+      pos: 'left' | 'right' | 'top';
+      dir: TankFacing;
+    }[] = [
       { x: state.base.x - 4, y: baseCenterY, pos: 'left', dir: 'right' },
       { x: state.base.x + 6, y: baseCenterY, pos: 'right', dir: 'left' },
       { x: baseCenterX, y: state.base.y - 4, pos: 'top', dir: 'bottom' },
@@ -627,7 +660,7 @@ export class BotAI {
     if (bestPos) {
       const botIndex = parseInt(botId.split('_')[1], 10) || 0;
       const offsetX = (botIndex % 3) - 1;
-      const offsetY = Math.floor(botIndex / 3) % 3 - 1;
+      const offsetY = (Math.floor(botIndex / 3) % 3) - 1;
 
       return {
         canShoot: false,
@@ -659,8 +692,10 @@ export class BotAI {
       checkY += bulletConfig.dy;
 
       if (
-        state.base.x <= checkX && checkX < state.base.x + 3 &&
-        state.base.y <= checkY && checkY < state.base.y + 3
+        state.base.x <= checkX &&
+        checkX < state.base.x + 3 &&
+        state.base.y <= checkY &&
+        checkY < state.base.y + 3
       ) {
         return true;
       }
@@ -671,7 +706,10 @@ export class BotAI {
     return false;
   }
 
-  isHeadingTowards(bullet: { x: number; y: number; dx: number; dy: number }, bot: PlayerState): boolean {
+  isHeadingTowards(
+    bullet: { x: number; y: number; dx: number; dy: number },
+    bot: PlayerState,
+  ): boolean {
     const dx = bot.x - bullet.x;
     const dy = bot.y - bullet.y;
     return (
@@ -680,7 +718,10 @@ export class BotAI {
     );
   }
 
-  wouldBeHit(position: { x: number; y: number }, bullet: { x: number; y: number; dx: number; dy: number }): boolean {
+  wouldBeHit(
+    position: { x: number; y: number },
+    bullet: { x: number; y: number; dx: number; dy: number },
+  ): boolean {
     const futureX = position.x + bullet.dx;
     const futureY = position.y + bullet.dy;
     return futureX === bullet.x && futureY === bullet.y;

@@ -1,7 +1,7 @@
 import type { BotDifficulty, MapSummary, RoomSummary } from '@tank/shared';
-import { socket } from './socket.js';
-import { fetchMaps } from './maps.js';
-import { renderMapThumbnail } from './mapThumbnail.js';
+import { socket } from '../../core/socket.js';
+import { fetchMaps } from '../../shared/maps.js';
+import { createMapCard } from '../../shared/mapCard.js';
 
 let wired = false;
 let modalOpen = false;
@@ -16,7 +16,9 @@ const draft = {
 };
 
 function setPressed(group: HTMLElement, value: string): void {
-  group.querySelectorAll<HTMLElement>('button').forEach((btn) => btn.setAttribute('aria-pressed', String(btn.dataset.value === value)));
+  group
+    .querySelectorAll<HTMLElement>('button')
+    .forEach((btn) => btn.setAttribute('aria-pressed', String(btn.dataset.value === value)));
 }
 
 async function renderMaps(): Promise<void> {
@@ -32,27 +34,17 @@ async function renderMaps(): Promise<void> {
     if (seen.has(map.id)) continue;
     seen.add(map.id);
 
-    const card = document.createElement('button');
-    card.type = 'button';
-    card.className = 'card';
-    card.disabled = !currentIsHost;
-    card.setAttribute('aria-pressed', String(map.id === draft.mapId));
-
-    const thumb = document.createElement('canvas');
-    thumb.className = 'thumb';
-    thumb.width = 96;
-    thumb.height = 64;
-    renderMapThumbnail(thumb, map.id, map.data);
-
-    const caption = document.createElement('span');
-    caption.className = 'cap o';
-    caption.textContent = map.name;
-
-    card.append(thumb, caption);
-    card.addEventListener('click', () => {
-      if (!currentIsHost) return;
-      draft.mapId = map.id;
-      grid.querySelectorAll('.card').forEach((c) => c.setAttribute('aria-pressed', String(c === card)));
+    const card = createMapCard({
+      map,
+      selected: map.id === draft.mapId,
+      disabled: !currentIsHost,
+      onSelect: (m, cardEl) => {
+        if (!currentIsHost) return;
+        draft.mapId = m.id;
+        grid
+          .querySelectorAll('.card')
+          .forEach((c) => c.setAttribute('aria-pressed', String(c === cardEl)));
+      },
     });
 
     grid.appendChild(card);
@@ -73,7 +65,9 @@ function render(): void {
 
   const difficultyGroup = document.getElementById('settings-modal-difficulty') as HTMLElement;
   setPressed(difficultyGroup, draft.botDifficulty);
-  difficultyGroup.querySelectorAll<HTMLButtonElement>('button').forEach((btn) => (btn.disabled = !currentIsHost));
+  difficultyGroup
+    .querySelectorAll<HTMLButtonElement>('button')
+    .forEach((btn) => (btn.disabled = !currentIsHost));
 
   const fillRow = document.getElementById('settings-modal-fill-row') as HTMLElement;
   const fillLabel = document.getElementById('settings-modal-fill-label') as HTMLElement;
@@ -84,8 +78,10 @@ function render(): void {
   const fillInput = document.getElementById('settings-modal-fill') as HTMLInputElement;
   fillInput.value = String(draft.botFillTarget);
   fillInput.disabled = !currentIsHost;
-  (document.getElementById('settings-modal-fill-minus') as HTMLButtonElement).disabled = !currentIsHost;
-  (document.getElementById('settings-modal-fill-plus') as HTMLButtonElement).disabled = !currentIsHost;
+  (document.getElementById('settings-modal-fill-minus') as HTMLButtonElement).disabled =
+    !currentIsHost;
+  (document.getElementById('settings-modal-fill-plus') as HTMLButtonElement).disabled =
+    !currentIsHost;
 
   const saveBtn = document.getElementById('settings-modal-save') as HTMLButtonElement;
   saveBtn.classList.toggle('tool-hidden', !currentIsHost);
@@ -111,11 +107,19 @@ function wireOnce(): void {
     draft.botFillTarget = clampFill(value);
     fillInput.value = String(draft.botFillTarget);
   };
-  (document.getElementById('settings-modal-fill-minus') as HTMLButtonElement).addEventListener('click', () => setFill(draft.botFillTarget - 1));
-  (document.getElementById('settings-modal-fill-plus') as HTMLButtonElement).addEventListener('click', () => setFill(draft.botFillTarget + 1));
+  (document.getElementById('settings-modal-fill-minus') as HTMLButtonElement).addEventListener(
+    'click',
+    () => setFill(draft.botFillTarget - 1),
+  );
+  (document.getElementById('settings-modal-fill-plus') as HTMLButtonElement).addEventListener(
+    'click',
+    () => setFill(draft.botFillTarget + 1),
+  );
   fillInput.addEventListener('input', () => setFill(parseInt(fillInput.value, 10)));
 
-  document.getElementById('settings-modal-close')?.addEventListener('click', () => hideSettingsModal());
+  document
+    .getElementById('settings-modal-close')
+    ?.addEventListener('click', () => hideSettingsModal());
   document.getElementById('settings-modal')?.addEventListener('click', (event) => {
     if (event.target === event.currentTarget) hideSettingsModal();
   });
