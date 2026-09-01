@@ -1,0 +1,102 @@
+<div id="settings-overlay" class="hidden">
+  <div class="screen">
+    <div class="field pixel-ui">
+      <div class="panel">
+        <span class="deco tl"></span><span class="deco tr"></span> <span class="deco bl"></span
+        ><span class="deco br"></span>
+        <div class="tab"><h1 class="o">GAME SETTINGS</h1></div>
+
+        <div class="well">
+          <label class="lbl o">Tank Color:</label>
+          <div class="color-palette" id="settings-colors">
+            <div
+              class="color-option"
+              data-color="#ffffff"
+              style="background-color: #ffffff"
+              title="White"
+            ></div>
+            <div
+              class="color-option"
+              data-color="#04847c"
+              style="background-color: #04847c"
+              title="Teal"
+            ></div>
+            <div
+              class="color-option"
+              data-color="#c20000"
+              style="background-color: #c20000"
+              title="Red"
+            ></div>
+            <div
+              class="color-option"
+              data-color="#007f9b"
+              style="background-color: #007f9b"
+              title="Blue"
+            ></div>
+            <div
+              class="color-option"
+              data-color="#ab8f00"
+              style="background-color: #ab8f00"
+              title="Yellow"
+            ></div>
+            <div
+              class="color-option"
+              data-color="#FF8B94"
+              style="background-color: #ff8b94"
+              title="Pink"
+            ></div>
+            <div
+              class="color-option"
+              data-color="#3100ab"
+              style="background-color: #3100ab"
+              title="Purple"
+            ></div>
+          </div>
+
+          <label class="lbl o">Sound:</label>
+          <div class="seg" id="settings-sound" role="group" aria-label="Sound">
+            <button class="btn o" type="button" data-value="on" aria-pressed="true">ON</button>
+            <button class="btn o" type="button" data-value="off" aria-pressed="false">OFF</button>
+          </div>
+
+          <label class="lbl o">Controls:</label>
+          <div class="controls-list" id="settings-controls">
+            <div class="controls-row">
+              <span class="controls-label o">Move Up</span>
+              <button class="btn o" type="button" data-action="up"></button>
+            </div>
+            <div class="controls-row">
+              <span class="controls-label o">Move Down</span>
+              <button class="btn o" type="button" data-action="down"></button>
+            </div>
+            <div class="controls-row">
+              <span class="controls-label o">Move Left</span>
+              <button class="btn o" type="button" data-action="left"></button>
+            </div>
+            <div class="controls-row">
+              <span class="controls-label o">Move Right</span>
+              <button class="btn o" type="button" data-action="right"></button>
+            </div>
+            <div class="controls-row">
+              <span class="controls-label o">Shoot</span>
+              <button class="btn o" type="button" data-action="shoot"></button>
+            </div>
+            <div class="controls-row">
+              <span class="controls-label o">Switch Weapon</span>
+              <button class="btn o" type="button" data-action="switchWeapon"></button>
+            </div>
+            <div class="controls-hint o" id="settings-controls-hint">
+              Arrow keys and Space always work too.
+            </div>
+            <button class="guest o" type="button" id="settings-controls-reset">
+              Reset Controls to Defaults
+            </button>
+          </div>
+
+          <button class="guest o" type="button" id="settings-account-btn">&larr; Account</button>
+          <button class="guest o" type="button" id="settings-back-btn">&larr; Back to Lobby</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

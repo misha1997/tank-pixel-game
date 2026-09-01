@@ -1,4 +1,5 @@
 import { socket } from './socket.js';
+import { getAllBindings } from './keybindings.js';
 
 export type MovementInput = 'movePieceTop' | 'movePieceBottom' | 'movePieceLeft' | 'movePieceRight';
 
@@ -7,23 +8,39 @@ let lastInputTime = 0;
 let lastInputSent = 0;
 let inputQueue: { type: MovementInput; timestamp: number }[] = [];
 
-// Physical keys and the virtual d-pad share one press-order stack, so the
-// "most recently pressed, still-held direction wins" rule covers both input
-// sources identically. 1001+ are pseudo-keycodes for the d-pad buttons.
-export const MOVEMENT_KEYS: Record<number, MovementInput> = {
+// Arrow keys and the virtual d-pad's pseudo-codes always move, regardless of
+// custom bindings (see core/keybindings.ts) — rebinding can never lock a
+// player out of moving. 1001+ are pseudo-keycodes for the d-pad buttons.
+const FIXED_MOVEMENT_KEYS: Record<number, MovementInput> = {
   37: 'movePieceLeft',
-  65: 'movePieceLeft',
   38: 'movePieceTop',
-  87: 'movePieceTop',
   39: 'movePieceRight',
-  68: 'movePieceRight',
   40: 'movePieceBottom',
-  83: 'movePieceBottom',
   1001: 'movePieceTop',
   1002: 'movePieceRight',
   1003: 'movePieceBottom',
   1004: 'movePieceLeft',
 };
+
+// Physical keys and the virtual d-pad share one press-order stack, so the
+// "most recently pressed, still-held direction wins" rule covers both input
+// sources identically. Populated by rebuildMovementKeys() below — kept as a
+// mutated-in-place object (not reassigned) so the exported reference stays
+// valid for every importer after a rebind.
+export const MOVEMENT_KEYS: Record<number, MovementInput> = {};
+
+export function rebuildMovementKeys(): void {
+  for (const key of Object.keys(MOVEMENT_KEYS)) delete MOVEMENT_KEYS[Number(key)];
+  Object.assign(MOVEMENT_KEYS, FIXED_MOVEMENT_KEYS);
+
+  const bindings = getAllBindings();
+  MOVEMENT_KEYS[bindings.up] = 'movePieceTop';
+  MOVEMENT_KEYS[bindings.down] = 'movePieceBottom';
+  MOVEMENT_KEYS[bindings.left] = 'movePieceLeft';
+  MOVEMENT_KEYS[bindings.right] = 'movePieceRight';
+}
+
+rebuildMovementKeys();
 
 export const DPAD_CODES: Record<MovementInput, number> = {
   movePieceTop: 1001,

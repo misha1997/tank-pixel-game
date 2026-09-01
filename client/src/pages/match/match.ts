@@ -33,11 +33,14 @@ export function joinRoom(
   account: AuthUser | null,
   root: HTMLElement,
   callbacks: MatchCallbacks,
+  spectate = false,
 ): () => void {
   if (!wired) {
     mountPartial(html);
     wired = true;
   }
+
+  if (spectate) document.body.classList.add('spectating');
 
   const generation = currentGeneration();
   let isHost = false;
@@ -65,18 +68,22 @@ export function joinRoom(
 
     callbacks.onEnter(new View(root));
     showMatchHud(result.room);
-    showRankCard(account);
+    if (!spectate) showRankCard(account);
     showChat();
     socket.on('room:restarted', onRestarted);
 
-    // No JOIN BATTLE prompt anymore — spawn immediately with the identity
-    // configured on the /account page (callsign + tank color).
-    const profile = loadProfile(account);
-    socket.emit('new player', {
-      name: profile.name,
-      color: profile.color,
-      roomId: result.room.id,
-    });
+    if (!spectate) {
+      // No JOIN BATTLE prompt anymore — spawn immediately with the identity
+      // configured on the /account page (callsign + tank color).
+      const profile = loadProfile(account);
+      socket.emit('new player', {
+        name: profile.name,
+        color: profile.color,
+        roomId: result.room.id,
+      });
+    } else {
+      callbacks.showToast('Spectating — click a name in the roster to follow them.');
+    }
 
     // Everything under the loader is mounted now; main.ts lifts it once the
     // arena layout and the first state snapshot have arrived.
@@ -89,6 +96,7 @@ export function joinRoom(
     // mid-round-trip still needs the leave — joinedRoom may be null here.
     socket.emit('room:leave');
     socket.off('room:restarted', onRestarted);
+    document.body.classList.remove('spectating');
     hideChat();
     hideSettingsModal();
     hideMatchHud();

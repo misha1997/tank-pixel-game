@@ -41,13 +41,19 @@ function renderRooms(rooms: RoomSummary[]): void {
 
     meta.append(mode, count);
 
+    const watchBtn = document.createElement('button');
+    watchBtn.type = 'button';
+    watchBtn.className = 'join watch o';
+    watchBtn.textContent = 'Watch';
+    watchBtn.addEventListener('click', () => navigate(`/room/${room.code}/watch`));
+
     const joinBtn = document.createElement('button');
     joinBtn.type = 'button';
     joinBtn.className = 'join o';
     joinBtn.textContent = 'Join';
     joinBtn.addEventListener('click', () => navigate(`/room/${room.code}`));
 
-    row.append(name, meta, joinBtn);
+    row.append(name, meta, watchBtn, joinBtn);
     listEl.appendChild(row);
   }
 }
@@ -58,10 +64,14 @@ function wireOnce(): void {
   const createBtn = document.getElementById('lobby-create-btn') as HTMLButtonElement;
   const joinBtn = document.getElementById('lobby-join-btn') as HTMLButtonElement;
   const accountBtn = document.getElementById('lobby-account-btn') as HTMLButtonElement;
+  const settingsBtn = document.getElementById('lobby-settings-btn') as HTMLButtonElement;
+  const historyBtn = document.getElementById('lobby-history-btn') as HTMLButtonElement;
   const logoutBtn = document.getElementById('lobby-logout-btn') as HTMLButtonElement;
 
   createBtn.addEventListener('click', () => navigate('/create-room'));
   accountBtn.addEventListener('click', () => navigate('/account'));
+  settingsBtn.addEventListener('click', () => navigate('/settings'));
+  historyBtn.addEventListener('click', () => navigate('/history'));
   logoutBtn.addEventListener('click', () => {
     logout().then(() => location.reload());
   });

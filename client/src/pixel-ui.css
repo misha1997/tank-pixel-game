@@ -565,6 +565,9 @@
   filter: grayscale(0.7) brightness(0.8);
   cursor: not-allowed;
 }
+.pixel-ui .join.watch {
+  filter: grayscale(0.4) brightness(0.9);
+}
 @media (prefers-reduced-motion: reduce) {
   .pixel-ui .join:active {
     transform: none;

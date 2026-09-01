@@ -18,6 +18,16 @@ const base: Record<SoundName, HTMLAudioElement> = {
   start: new Audio(CLIPS.start),
 };
 
+const MUTE_STORAGE_KEY = 'soundMuted';
+
+export function isSoundMuted(): boolean {
+  return localStorage.getItem(MUTE_STORAGE_KEY) === '1';
+}
+
+export function setSoundMuted(muted: boolean): void {
+  localStorage.setItem(MUTE_STORAGE_KEY, muted ? '1' : '0');
+}
+
 // Sound effects can overlap (two tanks dying the same tick, rapid-fire) — a
 // single shared <audio> element can't play itself twice at once, so each
 // call clones a fresh one and lets it be garbage-collected once it ends.
@@ -25,6 +35,7 @@ const base: Record<SoundName, HTMLAudioElement> = {
 // (e.g. a stray 'user dead sound' broadcast that arrives before the player
 // has clicked anything) — that rejection is expected and safely ignored.
 export function playSound(name: SoundName): void {
+  if (isSoundMuted()) return;
   const clip = base[name].cloneNode(true) as HTMLAudioElement;
   clip.volume = VOLUME[name];
   clip.play().catch(() => {});

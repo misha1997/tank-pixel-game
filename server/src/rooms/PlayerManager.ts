@@ -96,6 +96,10 @@ export class PlayerManager {
           x: (player.x + collided.x) / 2,
           y: (player.y + collided.y) / 2,
         });
+        // Mutual death, no single attacker — clear any stale kill-cam target
+        // a rapid respawn-then-collision could otherwise leave dangling.
+        this.io.to(playerId).emit('killed by', null);
+        this.io.to(collidedPlayer).emit('killed by', null);
       }
     } else {
       player.x = newX;

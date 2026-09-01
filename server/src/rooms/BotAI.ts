@@ -92,7 +92,6 @@ export class BotAI {
         now > bot.respawnShootingCooldown
       ) {
         bot.position = playerThreat.position;
-        bot.lastShot = now;
         this.bullets.createBullet(botId);
         memory.targetPlayer = playerThreat.playerId;
         return;
@@ -113,7 +112,6 @@ export class BotAI {
     if (attackPos.canShoot && attackPos.position) {
       bot.position = attackPos.position;
       if (now - bot.lastShot > BULLET_COOLDOWN && now > bot.respawnShootingCooldown) {
-        bot.lastShot = now;
         this.bullets.createBullet(botId);
       }
       return;
@@ -135,7 +133,6 @@ export class BotAI {
       const obstacle = this.findBestObstacleToShoot(bot);
       if (obstacle) {
         bot.position = obstacle.position;
-        bot.lastShot = now;
         this.bullets.createBullet(botId);
         return;
       }

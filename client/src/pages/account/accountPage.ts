@@ -2,7 +2,7 @@ import type { AuthUser } from '@tank/shared';
 import { logout } from '../auth/auth.js';
 import { navigate } from '../../core/router.js';
 import { mountPartial } from '../../core/page.js';
-import { loadProfile, saveProfile, sanitizeLogin, DEFAULT_TANK_COLOR } from '../../core/profile.js';
+import { saveProfileName, sanitizeLogin } from '../../core/profile.js';
 import html from './accountPage.html?raw';
 
 let wired = false;
@@ -11,11 +11,6 @@ let currentAccount: AuthUser | null = null;
 // Mirrors the server's auth rules (auth/router.ts).
 const LOGIN_MIN_LENGTH = 3;
 const PASSWORD_MIN_LENGTH = 6;
-
-function selectedColor(): string {
-  const selected = document.querySelector<HTMLElement>('#account-colors .color-option.selected');
-  return selected ? selected.dataset.color! : DEFAULT_TANK_COLOR;
-}
 
 function flagField(input: HTMLInputElement): void {
   input.focus();
@@ -101,16 +96,9 @@ async function saveLoggedIn(
 function wireOnce(): void {
   const nameInput = document.getElementById('account-name') as HTMLInputElement;
   const saveBtn = document.getElementById('account-save') as HTMLButtonElement;
+  const settingsBtn = document.getElementById('account-settings-btn') as HTMLButtonElement;
   const backBtn = document.getElementById('account-back-btn') as HTMLButtonElement;
   const errorBox = document.getElementById('account-error') as HTMLElement;
-  const colorOptions = document.querySelectorAll<HTMLElement>('#account-colors .color-option');
-
-  colorOptions.forEach((option) => {
-    option.addEventListener('click', () => {
-      colorOptions.forEach((opt) => opt.classList.remove('selected'));
-      option.classList.add('selected');
-    });
-  });
 
   const markSaved = (): void => {
     saveBtn.textContent = 'SAVED';
@@ -166,10 +154,7 @@ function wireOnce(): void {
         if (!ok) return; // error box already populated
       }
 
-      saveProfile({
-        name: currentAccount ? currentAccount.username : name,
-        color: selectedColor(),
-      });
+      saveProfileName(currentAccount ? currentAccount.username : name);
       markSaved();
     } finally {
       saveBtn.disabled = false;
@@ -192,6 +177,7 @@ function wireOnce(): void {
     if (e.key === 'Enter') void save();
   });
 
+  settingsBtn.addEventListener('click', () => navigate('/settings'));
   backBtn.addEventListener('click', () => navigate('/'));
 }
 
@@ -208,7 +194,6 @@ export function showAccountPage(account: AuthUser | null): void {
   const nameInput = document.getElementById('account-name') as HTMLInputElement;
   const passwordFields = document.getElementById('account-password-fields') as HTMLElement;
   const errorBox = document.getElementById('account-error') as HTMLElement;
-  const colorOptions = document.querySelectorAll<HTMLElement>('#account-colors .color-option');
 
   renderStatus();
 
@@ -222,10 +207,6 @@ export function showAccountPage(account: AuthUser | null): void {
   nameInput.readOnly = false;
 
   errorBox.textContent = '';
-  const savedColor = loadProfile(account).color;
-  colorOptions.forEach((option) => {
-    option.classList.toggle('selected', option.dataset.color === savedColor);
-  });
 
   overlay.classList.remove('hidden');
 }

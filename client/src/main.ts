@@ -1,10 +1,12 @@
-import type { ArenaLayout, AuthUser, GameStateSnapshot } from '@tank/shared';
+import type { ArenaLayout, AuthUser, GameStateSnapshot, PowerUpState } from '@tank/shared';
 import { socket } from './core/socket.js';
 import View from './game/view.js';
 import { playSound } from './game/audio.js';
 import { initAuth } from './pages/auth/auth.js';
 import { showLobby, hideLobby } from './pages/lobby/lobby.js';
 import { showAccountPage, hideAccountPage } from './pages/account/accountPage.js';
+import { showGameSettings, hideGameSettings } from './pages/settings/settings.js';
+import { showHistory, hideHistory } from './pages/history/history.js';
 import { showCreateRoom, hideCreateRoom } from './pages/create-room/createRoom.js';
 import { showMapEditor, hideMapEditor } from './pages/map-editor/mapEditor.js';
 import { isTypingIntoField } from './pages/match/chat.js';
@@ -20,6 +22,7 @@ import {
   trackMovementKeyDown,
   trackMovementKeyUp,
 } from './core/inputState.js';
+import { getBinding } from './core/keybindings.js';
 import { initMobileControls } from './pages/match/mobileControls.js';
 import { initMobileLayout } from './pages/match/mobileLayout.js';
 
@@ -36,6 +39,12 @@ function showToast(message: string): void {
 let myPlayerId: string | null = null;
 const keyStates: Record<number, boolean> = {};
 let view: View | null = null;
+
+// Spectators never emit 'new player', so myPlayerId stays null for them —
+// this flag is what actually gates game-input keys and drives the
+// roster-click-to-follow camera (see the 'state' handler and renderLoop).
+let isSpectating = false;
+let spectateTargetId: string | null = null;
 
 // Match deploy gate: while a room route is assembling (socket ack, arena
 // layout, first state snapshot), the #match-loader covers the screen and is
@@ -73,6 +82,14 @@ let lastArena: ArenaLayout | null = null;
 const debugMode = window.location.search.includes('debug');
 let renderedFrames = 0;
 
+let activePowerUps: PowerUpState[] = [];
+
+// Kill-cam: while set, the camera follows the killer instead of our own
+// (dead) tank — see the 'killed by' handler below.
+const KILL_CAM_DURATION = 1500;
+let killedBy: string | null = null;
+let killCamUntil = 0;
+
 // --- Routing -----------------------------------------------------------
 
 function setupRoutes(account: AuthUser | null): void {
@@ -96,27 +113,53 @@ function setupRoutes(account: AuthUser | null): void {
     return () => hideAccountPage();
   });
 
-  registerRoute('/room/:code', ({ code }) => {
-    showMatchLoader();
-
-    return joinRoom(code, account, root, {
-      onEnter: (v) => {
-        view = v;
-      },
-      onExit: () => {
-        finishMatchLoader();
-        view = null;
-        lastState = null;
-        lastArena = null;
-        root.replaceChildren();
-      },
-      onReady: () => {
-        matchLoaderAckDone = true;
-        tryRevealMatch();
-      },
-      showToast,
-    });
+  registerRoute('/settings', () => {
+    showGameSettings(account);
+    return () => hideGameSettings();
   });
+
+  registerRoute('/history', () => {
+    showHistory();
+    return () => hideHistory();
+  });
+
+  const enterRoom = (code: string, spectate: boolean): (() => void) => {
+    showMatchLoader();
+    isSpectating = spectate;
+    spectateTargetId = null;
+
+    return joinRoom(
+      code,
+      account,
+      root,
+      {
+        onEnter: (v) => {
+          view = v;
+        },
+        onExit: () => {
+          finishMatchLoader();
+          view = null;
+          lastState = null;
+          lastArena = null;
+          activePowerUps = [];
+          killedBy = null;
+          killCamUntil = 0;
+          isSpectating = false;
+          spectateTargetId = null;
+          root.replaceChildren();
+        },
+        onReady: () => {
+          matchLoaderAckDone = true;
+          tryRevealMatch();
+        },
+        showToast,
+      },
+      spectate,
+    );
+  };
+
+  registerRoute('/room/:code', ({ code }) => enterRoom(code, false));
+  registerRoute('/room/:code/watch', ({ code }) => enterRoom(code, true));
 
   startRouter();
 }
@@ -139,6 +182,11 @@ document.addEventListener('keydown', (event) => {
   if (!view) return;
   if (isTypingIntoField()) return;
 
+  if (isSpectating) {
+    if (event.keyCode === 13) document.getElementById('chat-input')?.focus();
+    return;
+  }
+
   if (keyStates[event.keyCode]) return;
   keyStates[event.keyCode] = true;
 
@@ -159,7 +207,8 @@ document.addEventListener('keydown', (event) => {
   }
 
   switch (event.keyCode) {
-    case 32: // Space
+    case 32: // Space — always works as a fallback, even if shoot is rebound
+    case getBinding('shoot'):
       event.preventDefault();
 
       if (lastState && myPlayerId && lastState.players[myPlayerId]) {
@@ -172,6 +221,13 @@ document.addEventListener('keydown', (event) => {
       socket.emit('moveShot');
       playSound('shot');
       break;
+    case getBinding('switchWeapon'): {
+      event.preventDefault();
+      socket.emit('switchWeapon');
+      const myPlayer = lastState && myPlayerId ? lastState.players[myPlayerId] : null;
+      showToast(myPlayer?.weapon === 'spread' ? 'Cannon' : 'Spread Shot');
+      break;
+    }
     case 13: // Enter — focus chat
       document.getElementById('chat-input')?.focus();
       break;
@@ -195,6 +251,29 @@ socket.on('user dead sound', () => {
   playSound('dead');
 });
 
+socket.on('killed by', (killerId) => {
+  if (!killerId || killerId === myPlayerId) {
+    killedBy = null;
+    killCamUntil = 0;
+    return;
+  }
+  killedBy = killerId;
+  killCamUntil = Date.now() + KILL_CAM_DURATION;
+  const killerName = lastState?.players[killerId]?.name;
+  if (killerName) showToast(`Killed by ${killerName}`);
+});
+
+socket.on('powerup:spawned', (powerUp) => {
+  activePowerUps.push(powerUp);
+});
+
+socket.on('powerup:collected', (data) => {
+  activePowerUps = activePowerUps.filter((p) => p.id !== data.id);
+  if (data.playerId === myPlayerId) {
+    showToast(data.type === 'shield' ? 'Shield activated!' : 'Rapid fire!');
+  }
+});
+
 socket.on('explosion', (data) => {
   console.log('Bullet collision at:', data);
 });
@@ -204,9 +283,21 @@ socket.on('collision explosion', (data) => {
 });
 
 function renderLoop(): void {
-  if (lastState && view) {
-    view.render(lastState, lastArena, myPlayerId);
-    if (debugMode) renderedFrames++;
+  // A single bad frame (e.g. a transient bad snapshot) must not permanently
+  // kill the loop — requestAnimationFrame never gets rescheduled if the
+  // callback throws.
+  try {
+    if (lastState && view) {
+      const cameraPlayerId = isSpectating
+        ? spectateTargetId
+        : killedBy && Date.now() < killCamUntil
+          ? killedBy
+          : null;
+      view.render(lastState, lastArena, myPlayerId, cameraPlayerId, activePowerUps);
+      if (debugMode) renderedFrames++;
+    }
+  } catch (err) {
+    console.error('Render frame failed:', err);
   }
   requestAnimationFrame(renderLoop);
 }
@@ -227,7 +318,19 @@ initMobileLayout();
 
 socket.on('state', (data) => {
   lastState = data;
-  updateMatchHud(data, lastArena, myPlayerId);
+
+  if (isSpectating) {
+    if (!spectateTargetId || !data.players[spectateTargetId]) {
+      const ids = Object.keys(data.players);
+      spectateTargetId = ids.find((id) => !data.players[id].isBot) ?? ids[0] ?? null;
+    }
+    updateMatchHud(data, lastArena, spectateTargetId, (id) => {
+      spectateTargetId = id;
+    });
+  } else {
+    updateMatchHud(data, lastArena, myPlayerId);
+  }
+
   tryRevealMatch();
 });
 

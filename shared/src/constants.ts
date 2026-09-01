@@ -7,6 +7,17 @@ export const BULLET_COOLDOWN = 200;
 export const BOT_SHOOT_DISTANCE = 15;
 export const INVULNERABILITY_TIME = 2000;
 
+export const RAPID_FIRE_COOLDOWN = 80;
+export const SHIELD_DURATION = 4000;
+export const RAPID_FIRE_DURATION = 6000;
+export const POWERUP_SPAWN_INTERVAL = 15000;
+export const POWERUP_MAX_ACTIVE = 2;
+
+// Spread fires 3 parallel bullets per shot instead of 1, so it costs more
+// cooldown than the primary cannon to keep it a trade-off, not a strict
+// upgrade.
+export const SPREAD_COOLDOWN_MULTIPLIER = 1.8;
+
 export const COLLISION_CHECK_DISTANCE = 5;
 export const BULLET_POOL_SIZE = 100;
 

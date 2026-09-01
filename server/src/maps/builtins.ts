@@ -272,6 +272,69 @@ function buildWarRooms(): MapDefinition {
   return { walls, bricks: [] };
 }
 
+// Four hollow corner bastions, each open toward the middle, plus a small
+// central pillar for last-second cover. Mirrored on both axes (x' = 100-x,
+// y' = 60-y) so all four spawn corners play identically.
+function buildBastionYard(): MapDefinition {
+  const walls: MapCell[] = [];
+
+  rect(walls, 48, 28, 52, 32);
+
+  // Top-left
+  hline(walls, 16, 30, 14);
+  vline(walls, 16, 14, 28);
+  hline(walls, 16, 24, 28);
+  // Top-right (x' = 100-x)
+  hline(walls, 70, 84, 14);
+  vline(walls, 84, 14, 28);
+  hline(walls, 76, 84, 28);
+  // Bottom-left (y' = 60-y)
+  hline(walls, 16, 30, 46);
+  vline(walls, 16, 32, 46);
+  hline(walls, 16, 24, 32);
+  // Bottom-right (both)
+  hline(walls, 70, 84, 46);
+  vline(walls, 84, 32, 46);
+  hline(walls, 76, 84, 32);
+
+  return { walls, bricks: [] };
+}
+
+// Long staggered horizontal corridors, each open on one side only, forcing
+// lateral zigzag movement and long north-south sightlines down the gaps.
+// 180°-rotationally symmetric around the map center.
+function buildSniperAlleys(): MapDefinition {
+  const walls: MapCell[] = [];
+
+  hline(walls, 10, 55, 14);
+  hline(walls, 45, 90, 46);
+
+  hline(walls, 45, 90, 22);
+  hline(walls, 10, 55, 38);
+
+  hline(walls, 20, 80, 30);
+
+  return { walls, bricks: [] };
+}
+
+// A checkerboard of small square bunkers across three offset rows — lots of
+// short sightlines and flanking routes between the gaps.
+function buildCheckerboardBunkers(): MapDefinition {
+  const walls: MapCell[] = [];
+
+  // Outer rows (mirrored: x' = 96-x for the shared 5-wide bunkers)
+  for (const x of [14, 34, 62, 82]) {
+    rect(walls, x, 14, x + 4, 18);
+    rect(walls, x, 42, x + 4, 46);
+  }
+  // Middle row, offset from the outer rows, self-symmetric set
+  for (const x of [24, 46, 72]) {
+    rect(walls, x, 28, x + 4, 32);
+  }
+
+  return { walls, bricks: [] };
+}
+
 // ---------------------------------------------------------------------------
 // CO-OP MAPS
 // ---------------------------------------------------------------------------
@@ -669,6 +732,96 @@ function buildCoopRedoubt(): MapDefinition {
   return { walls, bricks, base, enemySpawnPoints };
 }
 
+// A loosely walled keep — sides are wide open (the "long way around"), with
+// four watchtower pillars on the outer approach for bots and defenders to
+// use as cover.
+function buildCoopWatchtower(): MapDefinition {
+  const walls: MapCell[] = [];
+  const bricks: MapCell[] = [];
+  const base = { x: 48, y: 48 };
+
+  hline(walls, 36, 44, 40);
+  hline(walls, 52, 60, 40);
+  vline(walls, 36, 40, 44);
+  vline(walls, 60, 40, 44);
+  hline(walls, 36, 44, 54);
+  hline(walls, 52, 60, 54);
+
+  rect(walls, 20, 20, 24, 24);
+  rect(walls, 72, 20, 76, 24);
+  rect(walls, 20, 40, 24, 44);
+  rect(walls, 72, 40, 76, 44);
+
+  const enemySpawnPoints: MapCell[] = [
+    { x: 16, y: 8 },
+    { x: 36, y: 8 },
+    { x: 60, y: 8 },
+    { x: 80, y: 8 },
+    { x: 10, y: 24 },
+    { x: 88, y: 24 },
+  ];
+
+  return { walls, bricks, base, enemySpawnPoints };
+}
+
+// A destructible "riverbank" barrier splits the field, with a permanently
+// open bridge in the middle (marked by wall pillars) and brick banks on
+// either side as a slower, shootable alternative.
+function buildCoopRiverbank(): MapDefinition {
+  const walls: MapCell[] = [];
+  const bricks: MapCell[] = [];
+  const base = { x: 48, y: 50 };
+
+  hline(bricks, 10, 42, 26);
+  hline(bricks, 58, 90, 26);
+  rect(walls, 40, 22, 44, 24);
+  rect(walls, 56, 22, 60, 24);
+
+  rect(walls, 30, 38, 34, 42);
+  rect(walls, 66, 38, 70, 42);
+
+  const enemySpawnPoints: MapCell[] = [
+    { x: 14, y: 10 },
+    { x: 40, y: 10 },
+    { x: 60, y: 10 },
+    { x: 86, y: 10 },
+    { x: 50, y: 14 },
+  ];
+
+  return { walls, bricks, base, enemySpawnPoints };
+}
+
+// A walled bastion around the base: solid to the north (behind a
+// destructible brick gatehouse shortcut) and south, but always open to the
+// east as the guaranteed long way around.
+function buildCoopBastionDefense(): MapDefinition {
+  const walls: MapCell[] = [];
+  const bricks: MapCell[] = [];
+  const base = { x: 48, y: 48 };
+
+  vline(walls, 38, 40, 56);
+  hline(walls, 38, 58, 56);
+  hline(walls, 38, 44, 40);
+  hline(walls, 52, 58, 40);
+  vline(walls, 58, 50, 56);
+
+  rect(bricks, 45, 40, 51, 41);
+
+  rect(walls, 20, 24, 24, 28);
+  rect(walls, 74, 24, 78, 28);
+  rect(walls, 46, 16, 52, 18);
+
+  const enemySpawnPoints: MapCell[] = [
+    { x: 12, y: 10 },
+    { x: 34, y: 8 },
+    { x: 62, y: 8 },
+    { x: 86, y: 10 },
+    { x: 48, y: 8 },
+  ];
+
+  return { walls, bricks, base, enemySpawnPoints };
+}
+
 // ---------------------------------------------------------------------------
 
 export interface BuiltinMap {
@@ -723,6 +876,24 @@ export const BUILTIN_MAPS: BuiltinMap[] = [
     definition: buildDiagonalSlash(),
   },
   { id: 'builtin-pvp-war-rooms', name: 'War Rooms', mode: 'pvp', definition: buildWarRooms() },
+  {
+    id: 'builtin-pvp-bastion-yard',
+    name: 'Bastion Yard',
+    mode: 'pvp',
+    definition: buildBastionYard(),
+  },
+  {
+    id: 'builtin-pvp-sniper-alleys',
+    name: 'Sniper Alleys',
+    mode: 'pvp',
+    definition: buildSniperAlleys(),
+  },
+  {
+    id: 'builtin-pvp-checkerboard-bunkers',
+    name: 'Checkerboard Bunkers',
+    mode: 'pvp',
+    definition: buildCheckerboardBunkers(),
+  },
 
   {
     id: 'builtin-coop-crossfire',
@@ -758,6 +929,24 @@ export const BUILTIN_MAPS: BuiltinMap[] = [
   },
   { id: 'builtin-coop-quarry', name: 'Quarry', mode: 'coop', definition: buildCoopQuarry() },
   { id: 'builtin-coop-redoubt', name: 'Redoubt', mode: 'coop', definition: buildCoopRedoubt() },
+  {
+    id: 'builtin-coop-watchtower',
+    name: 'Watchtower',
+    mode: 'coop',
+    definition: buildCoopWatchtower(),
+  },
+  {
+    id: 'builtin-coop-riverbank',
+    name: 'Riverbank',
+    mode: 'coop',
+    definition: buildCoopRiverbank(),
+  },
+  {
+    id: 'builtin-coop-bastion-defense',
+    name: 'Bastion Defense',
+    mode: 'coop',
+    definition: buildCoopBastionDefense(),
+  },
 ];
 
 export function getBuiltinMap(id: string): BuiltinMap | undefined {

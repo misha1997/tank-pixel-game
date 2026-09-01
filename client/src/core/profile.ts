@@ -41,7 +41,10 @@ export function loadProfile(account: AuthUser | null): PlayerProfile {
   return { name, color };
 }
 
-export function saveProfile(profile: PlayerProfile): void {
-  localStorage.setItem('playerName', profile.name);
-  localStorage.setItem('playerColor', profile.color);
+export function saveProfileName(name: string): void {
+  localStorage.setItem('playerName', name);
+}
+
+export function saveProfileColor(color: string): void {
+  localStorage.setItem('playerColor', color);
 }

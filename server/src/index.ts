@@ -209,6 +209,10 @@ io.on('connection', (socket) => {
     socketRooms.get(socket.id)?.shoot(socket.id);
   });
 
+  socket.on('switchWeapon', () => {
+    socketRooms.get(socket.id)?.switchWeapon(socket.id);
+  });
+
   socket.on('restart', () => {
     socketRooms.get(socket.id)?.restart(socket.id);
   });

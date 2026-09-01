@@ -6,6 +6,8 @@ import type {
   GameStateSnapshot,
   JoinRoomPayload,
   NewPlayerPayload,
+  PowerUpState,
+  PowerUpType,
   RoomActionResult,
   RoomPlayerInfo,
   RoomSummary,
@@ -19,6 +21,7 @@ export interface ClientToServerEvents {
   movePieceLeft: () => void;
   movePieceRight: () => void;
   moveShot: () => void;
+  switchWeapon: () => void;
   restart: () => void;
 
   'lobby:subscribe': () => void;
@@ -42,6 +45,12 @@ export interface ServerToClientEvents {
   state: (data: GameStateSnapshot) => void;
   'user dead': (id: string) => void;
   'user dead sound': () => void;
+  // Sent only to the victim's own socket, right as the kill lands — powers
+  // the client's brief kill-cam. `null` for a non-attributable death (e.g.
+  // a mutual tank-vs-tank collision).
+  'killed by': (killerId: string | null) => void;
+  'powerup:spawned': (powerUp: PowerUpState) => void;
+  'powerup:collected': (data: { id: string; type: PowerUpType; playerId: string }) => void;
   explosion: (data: { x: number; y: number }) => void;
   'collision explosion': (data: { x: number; y: number }) => void;
   'brick destroyed': (data: { x: number; y: number }) => void;

@@ -32,10 +32,27 @@ export interface PlayerState {
   exploding: boolean;
   explosionEndTime: number;
   respawnShootingCooldown: number;
+  rapidFireUntil?: number;
+  weapon?: WeaponType;
   health?: number;
   lives?: number;
   rating?: number;
   userId?: string;
+}
+
+// 'cannon' is the default single-shot primary weapon; 'spread' fires 3
+// parallel bullets per shot at a higher cooldown (see
+// SPREAD_COOLDOWN_MULTIPLIER) — a wide-but-slower trade-off, not a strict
+// upgrade.
+export type WeaponType = 'cannon' | 'spread';
+
+export type PowerUpType = 'shield' | 'rapidFire';
+
+export interface PowerUpState {
+  id: string;
+  type: PowerUpType;
+  x: number;
+  y: number;
 }
 
 export type BotDifficulty = 'easy' | 'normal' | 'hard' | 'adaptive';
@@ -79,6 +96,8 @@ export interface PlayerSnapshot {
   exploding: boolean;
   explosionEndTime: number;
   respawnShootingCooldown: number;
+  rapidFireUntil?: number;
+  weapon?: WeaponType;
   lives?: number;
 }
 

@@ -25,6 +25,7 @@ import { PlayerManager } from './PlayerManager.js';
 import { BotAI } from './BotAI.js';
 import { CoopManager } from './CoopManager.js';
 import { PvpBotManager } from './PvpBotManager.js';
+import { PowerUpManager } from './PowerUpManager.js';
 import { resolveConcreteDifficulty, type ConcreteDifficulty } from './difficulty.js';
 import { settlePvpDeparture } from '../matches/settle.js';
 import { resolveMap } from '../maps/resolve.js';
@@ -74,6 +75,7 @@ export class GameRoom {
   readonly ai: BotAI;
   readonly coop: CoopManager;
   readonly pvpBots: PvpBotManager;
+  readonly powerUps: PowerUpManager;
 
   status: RoomStatus = 'waiting';
   private readonly tickInterval: NodeJS.Timeout;
@@ -122,6 +124,7 @@ export class GameRoom {
       () => this.getMatchDurationSec(),
     );
     this.pvpBots = new PvpBotManager(this.state, this.bullets, this.players, this.ai);
+    this.powerUps = new PowerUpManager(this.state, io, this.id);
 
     this.map.applyMap(options.map, this.mode);
 
@@ -306,6 +309,7 @@ export class GameRoom {
     }
 
     this.map.applyMap(resolved.definition, this.mode);
+    this.powerUps.reset();
 
     this.mapName = resolved.name;
     this.currentMapId = resolved.id;
@@ -366,6 +370,12 @@ export class GameRoom {
 
   shoot(socketId: string): void {
     this.bullets.createBullet(socketId);
+  }
+
+  switchWeapon(socketId: string): void {
+    const player = this.state.players[socketId];
+    if (!player || !player.status) return;
+    player.weapon = player.weapon === 'spread' ? 'cannon' : 'spread';
   }
 
   restart(socketId: string): void {
@@ -505,6 +515,8 @@ export class GameRoom {
 
     if (this.playerCount() === 0) return;
 
+    this.powerUps.tick();
+
     // Bullet cells are collected BEFORE checkBulletCollisions() so a snapshot
     // still shows bullets that annihilate each other this tick — the old
     // playField matrix had the same one-tick visibility, and the death
@@ -549,6 +561,8 @@ export class GameRoom {
         exploding: player.exploding,
         explosionEndTime: player.explosionEndTime,
         respawnShootingCooldown: player.respawnShootingCooldown,
+        rapidFireUntil: player.rapidFireUntil,
+        weapon: player.weapon,
         lives: player.lives,
       };
     }

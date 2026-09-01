@@ -4,6 +4,7 @@ import type {
   BaseState,
   BrickState,
   GameStateSnapshot,
+  PowerUpState,
   WallState,
 } from '@tank/shared';
 
@@ -48,6 +49,7 @@ export default class View {
     empty: 'rgba(0, 0, 0, 0.2)',
     background: '#9aa680',
     invulnerable: 'rgba(255, 215, 0)',
+    rapidFire: 'rgba(79, 195, 247)',
   };
 
   constructor(element: HTMLElement) {
@@ -130,11 +132,20 @@ export default class View {
     );
   }
 
-  render(data: GameStateSnapshot, arena: ArenaLayout | null, myPlayerId: string | null): void {
+  render(
+    data: GameStateSnapshot,
+    arena: ArenaLayout | null,
+    myPlayerId: string | null,
+    // While set (kill-cam), the camera follows this player instead of our
+    // own — see main.ts's 'killed by' handling.
+    cameraPlayerId?: string | null,
+    powerUps?: PowerUpState[],
+  ): void {
     const mapWidth = size.col * this.cellSize;
     const mapHeight = size.row * this.cellSize;
 
-    const me = myPlayerId ? data.players[myPlayerId] : undefined;
+    const focusId = cameraPlayerId ?? myPlayerId;
+    const me = focusId ? data.players[focusId] : undefined;
     const centerX = me ? (me.x + 1.5) * this.cellSize : mapWidth / 2;
     const centerY = me ? (me.y + 1.5) * this.cellSize : mapHeight / 2;
 
@@ -171,6 +182,7 @@ export default class View {
       this.renderBase(data.base);
     }
 
+    this.renderPowerUps(powerUps);
     this.renderTanksAndBullets(data.players, data.bulletCells);
 
     this.context.restore();
@@ -251,6 +263,28 @@ export default class View {
     this.context.fillText('E', baseX + this.cellSize / 2, baseY + this.cellSize * 2);
   }
 
+  private renderPowerUps(powerUps: PowerUpState[] | undefined): void {
+    if (!powerUps || powerUps.length === 0) return;
+
+    const now = Date.now();
+    const pulse = 0.85 + 0.15 * Math.sin(now / 200);
+
+    for (const powerUp of powerUps) {
+      const cx = powerUp.x * this.cellSize + this.cellSize / 2;
+      const cy = powerUp.y * this.cellSize + this.cellSize / 2;
+      const radius = (this.cellSize / 2 - 3) * pulse;
+
+      this.context.beginPath();
+      this.context.arc(cx, cy, radius, 0, Math.PI * 2);
+      this.context.fillStyle =
+        powerUp.type === 'shield' ? this.colors.invulnerable : this.colors.rapidFire;
+      this.context.fill();
+      this.context.lineWidth = 2;
+      this.context.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+      this.context.stroke();
+    }
+  }
+
   // Client-side equivalent of the old server-stamped playField matrix:
   // each live player's 3x3 piece is stamped locally, then bullet cells paint
   // over everything, so bullets win the cell they occupy.
@@ -291,7 +325,7 @@ export default class View {
       const x = key % size.col;
       const y = (key - x) / size.col;
 
-      let isInvulnerable = false;
+      let buff: 'none' | 'shield' | 'rapidFire' = 'none';
       let playerColor: string | null = null;
       for (const playerId in players) {
         const player = players[playerId];
@@ -300,25 +334,27 @@ export default class View {
             playerColor = player.color;
 
             if (player.invulnerableUntil && now < player.invulnerableUntil) {
-              isInvulnerable = true;
+              buff = 'shield';
+            } else if (player.rapidFireUntil && now < player.rapidFireUntil) {
+              buff = 'rapidFire';
             }
             break;
           }
         }
       }
 
-      this.renderFilledCell(x, y, isInvulnerable, now, playerColor);
+      this.renderFilledCell(x, y, buff, now, playerColor);
     }
 
     for (const cell of bulletCells) {
-      this.renderFilledCell(cell.x, cell.y, false, now, null);
+      this.renderFilledCell(cell.x, cell.y, 'none', now, null);
     }
   }
 
   private renderFilledCell(
     x: number,
     y: number,
-    isInvulnerable = false,
+    buff: 'none' | 'shield' | 'rapidFire' = 'none',
     now = Date.now(),
     playerColor: string | null = null,
   ): void {
@@ -327,8 +363,8 @@ export default class View {
 
     let fillStyle = playerColor || this.colors.filled;
 
-    if (isInvulnerable && Math.floor(now / 200) % 2 === 0) {
-      fillStyle = this.colors.invulnerable;
+    if (buff !== 'none' && Math.floor(now / 200) % 2 === 0) {
+      fillStyle = buff === 'shield' ? this.colors.invulnerable : this.colors.rapidFire;
     }
 
     this.context.fillStyle = fillStyle;

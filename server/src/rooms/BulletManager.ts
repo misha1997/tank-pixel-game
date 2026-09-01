@@ -1,14 +1,19 @@
 import type { Server } from 'socket.io';
 import {
+  BULLET_COOLDOWN,
   BULLET_POOL_SIZE,
   BULLET_SPEED,
+  RAPID_FIRE_COOLDOWN,
+  SPREAD_COOLDOWN_MULTIPLIER,
   bulletDirections,
   positionPiece,
   size,
 } from '@tank/shared';
 import type {
+  BulletDirectionConfig,
   BulletState,
   ClientToServerEvents,
+  PlayerState,
   ServerToClientEvents,
   TankFacing,
 } from '@tank/shared';
@@ -89,11 +94,49 @@ export class BulletManager {
     const player = state.players[playerId];
     if (!player || !player.status) return;
 
+    // Authoritative rate-limit — mirrors what bots already self-impose, but
+    // for humans this used to be enforced client-side only (trivially
+    // bypassable by any client that doesn't go through our own UI). Bots
+    // must NOT also set player.lastShot before calling this — this is the
+    // sole owner of that field, or every bot shot self-rejects (see the
+    // rapid-fire regression this fixed).
+    const now = Date.now();
+    if (now < player.respawnShootingCooldown) return;
+    const weapon = player.weapon ?? 'cannon';
+    const baseCooldown =
+      player.rapidFireUntil && now < player.rapidFireUntil ? RAPID_FIRE_COOLDOWN : BULLET_COOLDOWN;
+    const cooldown = weapon === 'spread' ? baseCooldown * SPREAD_COOLDOWN_MULTIPLIER : baseCooldown;
+    if (now - player.lastShot < cooldown) return;
+
     const bulletConfig = bulletDirections[player.position as keyof typeof bulletDirections];
     if (!bulletConfig) return;
 
-    const bulletX = player.x + bulletConfig.offsetX;
-    const bulletY = player.y + bulletConfig.offsetY;
+    player.lastShot = now;
+
+    if (weapon === 'spread') {
+      // Three parallel bullets, offset along the axis perpendicular to
+      // travel — dx===0 means travel is vertical, so the perpendicular
+      // spread is along x, and vice versa.
+      const perpX = bulletConfig.dx === 0 ? 1 : 0;
+      const perpY = bulletConfig.dy === 0 ? 1 : 0;
+      for (const spread of [-1, 0, 1]) {
+        this.spawnBullet(playerId, player, bulletConfig, spread * perpX, spread * perpY);
+      }
+    } else {
+      this.spawnBullet(playerId, player, bulletConfig, 0, 0);
+    }
+  }
+
+  private spawnBullet(
+    playerId: string,
+    player: PlayerState,
+    bulletConfig: BulletDirectionConfig,
+    extraOffsetX: number,
+    extraOffsetY: number,
+  ): void {
+    const { state } = this;
+    const bulletX = player.x + bulletConfig.offsetX + extraOffsetX;
+    const bulletY = player.y + bulletConfig.offsetY + extraOffsetY;
 
     if (bulletX < 0 || bulletX >= size.col || bulletY < 0 || bulletY >= size.row) {
       return;
@@ -205,6 +248,7 @@ export class BulletManager {
               if (target.position !== 'boomOne' && target.position !== 'boomTwo') {
                 state.players[shooterId].score++;
                 this.notifyKill(state.players[shooterId].name, target.name);
+                this.io.to(playerId).emit('killed by', shooterId);
                 this.getPlayers().boomAnimate(playerId);
                 return true;
               }

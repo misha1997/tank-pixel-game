@@ -39,6 +39,7 @@ function renderCoopStatus(
   body: HTMLElement,
   data: GameStateSnapshot,
   myPlayerId: string | null,
+  onSelectPlayer?: (playerId: string) => void,
 ): void {
   body.appendChild(line(`WAVE: ${data.wave || 1}`));
   body.appendChild(line(`ENEMIES: ${data.enemiesRemaining || 0}`));
@@ -65,6 +66,10 @@ function renderCoopStatus(
     const isMe = playerId === myPlayerId;
     const lives = '♥'.repeat(player.lives || 1);
     row.textContent = `${isMe ? '► ' : ''}${player.name}: ${lives}`;
+    if (onSelectPlayer) {
+      row.classList.add('roster-selectable');
+      row.addEventListener('click', () => onSelectPlayer(playerId));
+    }
     roster.appendChild(row);
   }
   body.appendChild(roster);
@@ -74,6 +79,7 @@ function renderPvpStatus(
   body: HTMLElement,
   data: GameStateSnapshot,
   myPlayerId: string | null,
+  onSelectPlayer?: (playerId: string) => void,
 ): void {
   const players = Object.entries(data.players).sort((a, b) => b[1].score - a[1].score);
   body.appendChild(line(`PLAYERS: ${players.length}`));
@@ -87,6 +93,10 @@ function renderPvpStatus(
     const prefix = isMe ? '► ' : player.isBot ? '[BOT] ' : '';
     const status = isDead ? ' [DEAD]' : '';
     row.textContent = `${index + 1}: ${prefix}${player.name} — ${player.score}${status}`;
+    if (onSelectPlayer) {
+      row.classList.add('roster-selectable');
+      row.addEventListener('click', () => onSelectPlayer(playerId));
+    }
     roster.appendChild(row);
   });
   body.appendChild(roster);
@@ -158,14 +168,15 @@ export function updateMatchHud(
   data: GameStateSnapshot,
   arena: ArenaLayout | null,
   myPlayerId: string | null,
+  onSelectPlayer?: (playerId: string) => void,
 ): void {
   const body = document.getElementById('match-status-body');
   if (body) {
     body.replaceChildren();
     if (data.gameMode === 'coop') {
-      renderCoopStatus(body, data, myPlayerId);
+      renderCoopStatus(body, data, myPlayerId, onSelectPlayer);
     } else {
-      renderPvpStatus(body, data, myPlayerId);
+      renderPvpStatus(body, data, myPlayerId, onSelectPlayer);
     }
   }
 

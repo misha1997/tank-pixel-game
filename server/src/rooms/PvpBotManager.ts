@@ -140,7 +140,6 @@ export class PvpBotManager {
     const shootDir = this.ai.canShootTarget(bot, target);
     if (shootDir && now - bot.lastShot > BULLET_COOLDOWN && now > bot.respawnShootingCooldown) {
       bot.position = shootDir;
-      bot.lastShot = now;
       this.bullets.createBullet(botId);
       return;
     }
